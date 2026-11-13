@@ -1,6 +1,6 @@
-from datetime import date
+import datetime
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ class ScanStatus(Enum):
     UNREADABLE = "unreadable"
 
 T = TypeVar("T")
-class ScannedField(BaseModel, Generic[T]):
+class ScannedField[T](BaseModel):
    value: T | None
    status: ScanStatus
 
@@ -25,7 +25,7 @@ class Member(BaseModel):
 class Form(BaseModel):
     activity_name: ScannedField[str] = Field(title="Název aktivity")
     activity_theme: ScannedField[str] = Field(title="Téma")
-    date: ScannedField[date] = Field(title="Datum realizec (od - do)")
+    date: ScannedField[datetime.date] = Field(title="Datum realizace (od - do)")
     lecturer1: ScannedField[str] = Field(title="Zaměstnanec MC")
     lecturer2: ScannedField[str] = Field(title="Lektor")
     member_count: ScannedField[int] = Field(title="Počet účastníků")

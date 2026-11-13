@@ -1,5 +1,6 @@
-from models import Form
 from fastmcp import FastMCP
+
+from models import Form
 
 mcp = FastMCP("Form")
 
@@ -25,4 +26,5 @@ def parse_form(data: Form) -> Form:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="http", host="127.0.0.1", port=8000)
+
