@@ -16,8 +16,13 @@ class ScannedField[T](BaseModel):
    status: ScanStatus
 
 
+class Name(BaseModel):
+    name: str | None = Field(title="Jméno")
+    surname: str | None = Field(title="Příjmení")
+
+
 class Member(BaseModel):
-    name: ScannedField[str] = Field(title="Jméno a příjmení účastníka")
+    name: ScannedField[Name] = Field(title="Jméno a příjmení účastníka")
     child_name: ScannedField[str] = Field(title="Jméno dítěte nebo dětí")
     city: ScannedField[str] = Field(title="Bydliště jen obec")
     contact: ScannedField[str] = Field(title="Kontakt email nebo tel.")

@@ -14,6 +14,7 @@ def parse_form(data: Form) -> Form:
 
     Match printed field labels to the `Form` schema field titles.
     The `members` field corresponds to the table rows. Match table column headers to the `Member` schema field titles.
+    Correctly split fields of type `Name` to name and surname.
 
     Correctly scanned fields have status `OK`.
     Missing fields have value `None` and status `MISSING`. Never infer or invent missing values.
