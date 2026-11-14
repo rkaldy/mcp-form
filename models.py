@@ -1,19 +1,13 @@
 import datetime
-from enum import Enum
 from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
-
-class ScanStatus(Enum):
-    OK = "ok"
-    MISSING = "missing"
-    UNREADABLE = "unreadable"
-
 T = TypeVar("T")
 class ScannedField[T](BaseModel):
+   raw_value: str | None
    value: T | None
-   status: ScanStatus
+   accuracy: int
 
 
 class Name(BaseModel):

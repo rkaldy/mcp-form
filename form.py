@@ -16,10 +16,11 @@ def parse_form(data: Form) -> Form:
     The `members` field corresponds to the table rows. Match table column headers to the `Member` schema field titles.
     Correctly split fields of type `Name` to name and surname.
 
-    Correctly scanned fields have status `OK`.
-    Missing fields have value `None` and status `MISSING`. Never infer or invent missing values.
-    Unreadable fields value `None` and status `UNREADABLE`.
-    Take into account the field types. If you can't validate the scanned value as the given type, the value should be `None` and status `UNREADABLE`.
+    Every scanned field has attribute `accuracy` describing how much accurate is the parsing result. 100 = absolute certain, 0 = missing value or totally unrecognizeable text
+    Missing fields have `value=None, raw_value=None`.
+    If the field type is `str`, the `value` and `raw_value` are the same.
+    Otherwise `raw_value` contains the scanned text and `value` is the value of the given type.
+    If you can't parse the value to the given type, leave `value=None`, and leave `raw_value` and `accuracy` the same as for string fields.
 
     Returns validated data without storing it.
     """
