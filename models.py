@@ -7,7 +7,7 @@ T = TypeVar("T")
 class ScannedField[T](BaseModel):
    raw_value: str | None = Field(description="Řetězcová hodnota pole")
    value: T | None = Field(description="Parsovaná hodnota pole daného typu")
-   accuracy: int = Field(description="Přesnost parsingu: 0 = chybějící nebo zcela nečitelné, 100 = s jistotou čitelné")
+   certainty: int = Field(description="Jak jsi si jistý přesností parsingu: 0 = chybějící nebo zcela nečitelné, 100 = s jistotou čitelné")
 
 
 class Name(BaseModel):
