@@ -3,7 +3,7 @@ name = "form"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp",
+    "fastapi>=0.165.0",
     "pydantic",
 ]
 
@@ -11,11 +11,13 @@ dependencies = [
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = ["form", "models"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [dependency-groups]
 dev = [
     "mypy",
     "ruff",
+    "workers-py>=1.17.9",
+    "workers-runtime-sdk>=1.9.6",
 ]

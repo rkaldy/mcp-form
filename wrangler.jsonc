@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "form-scanner",
+  "main": "src/worker.py",
+  "compatibility_date": "2026-11-20",
+  "compatibility_flags": ["python_workers"]
+}
