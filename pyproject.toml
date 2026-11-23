@@ -7,6 +7,7 @@ dependencies = [
     "imagesize>=2.0.1",
     "litellm>=1.110.2",
     "pydantic",
+    "pydantic-settings>=2.16.3",
 ]
 
 [build-system]
@@ -15,6 +16,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
 
 [dependency-groups]
 dev = [

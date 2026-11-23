@@ -3,5 +3,9 @@
   "name": "form-scanner",
   "main": "src/worker.py",
   "compatibility_date": "2026-11-20",
-  "compatibility_flags": ["python_workers"]
+  "compatibility_flags": ["python_workers"],
+  "vars": {
+    "LLM_MODEL": "openai/gpt-6",
+    "LLM_REASONING_EFFORT": "medium"
+  }
 }

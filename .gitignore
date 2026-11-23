@@ -12,3 +12,6 @@ __pycache__/
 python_modules/
 pylock.toml
 node_modules/
+.env*
+!.env.example
+.dev.vars*
