@@ -4,6 +4,8 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.165.0",
+    "imagesize>=2.0.1",
+    "litellm>=1.110.2",
     "pydantic",
 ]
 
@@ -17,6 +19,9 @@ where = ["src"]
 [dependency-groups]
 dev = [
     "mypy",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-mock>=3.17.0",
     "ruff",
     "workers-py>=1.17.9",
     "workers-runtime-sdk>=1.9.6",

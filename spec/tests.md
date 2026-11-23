@@ -36,6 +36,11 @@ Tato kapitola platí pro všechny testy kromě smoke testů.
 - Testy udržuj deterministické, izolované, opakovatelné a nezávislé na pořadí spuštění. Po každém testu ukliď všechna jím vytvořená data.
 - Namísto skutečného čekání nebo závislosti na reálném čase používej řízené hodiny, předávané zdroje náhodnosti a synchronizační mechanismy.
 - Upřednostňuj realistická testovací data a aserce, které skutečně odhalí regresi chování. Nepiš aserce jen kvůli zvýšení procenta pokrytí.
+
+## Testovací techniky
+
+- Na testování používej funkce `test_XXX`, ne metody. Do docstringu dej popis, co daný test testuje.
+- Na mockování použij `mocker.patch` a `mocker.patch.object`.
 - Místo copy-paste vytváření struktur pro běh testů používej pytest fixtury. Nepoužívej fixtury místo triviálních konstruktorů s jedním parametrem typu `obj=Class("param")`. Zvaž, zdali u objektů, které přijímají různé parametry v konstruktoru, není lepší factory funkce nežli fixtura.
 - Netestuj triviální pydantic validace v samotných modelech. Nevalidní parametry testuj jen u funkcí, které samy validují.
 - Nesnaž se za každou cenu o 100% test code coverage. Nepiš testy na triviální kód. Máš-li nějakou jednoduchou metodu třídu nebo strukturu, buď ji netestuj vůbec (testing coverage není relevantní metrika), anebo ji otestuj v rámci testovnání metody, která ji volá.
