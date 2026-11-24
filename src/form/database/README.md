@@ -1,43 +1,64 @@
-# Database adapters
+# D1 database adapter
 
-CRUD classes accept `DatabaseConnection`; services accept `DatabasePool` and open
-short resource scopes:
+The application uses the official Cloudflare Workers D1 binding in both local
+and production environments. Wrangler/Miniflare provides SQLite-backed D1 locally;
+Cloudflare provides the hosted database in production. The Python adapter does
+not implement another SQLite driver, REST transport, or JavaScript conversion.
+The installed `workers-runtime-sdk` handles binding arguments and Python result
+dictionaries, including SQL NULL values.
 
-```python
-from form.database.sqlite import SQLitePool
+## Configuration
 
-pool = SQLitePool()  # data/form.sqlite; no I/O until connection() is entered
-async with pool.connection() as connection:
-    row = await connection.fetch_one("SELECT name FROM records WHERE id = ?", (1,))
+`wrangler.jsonc` defines a `DB` binding with `database_name: "form"` and
+`remote: false`. Run `make dev` to use its local database. Data is persisted under
+`.wrangler/state/` by Wrangler, rather than in a separately managed
+`data/form.sqlite` file.
+
+For local development against Cloudflare, add the real `database_id` of your D1
+database and change the binding's `remote` to `true`. This selects the remote
+resource while the application still runs locally. To force local resources for
+one run, use `uv run pywrangler dev --local`.
+
+The `remote` option only controls development. A deployed Worker always uses the
+hosted D1 binding. Set the real database ID before deploying to select an existing
+database; no Cloudflare resources are created by this adapter.
+
+Inspect the local database with:
+
+```sh
+npx wrangler d1 execute form --local --command "SELECT 1;"
 ```
 
-On Cloudflare Workers, inject the configured D1 binding instead:
+## FastAPI and CRUD usage
+
+Use `get_database_pool` as a FastAPI dependency:
 
 ```python
+from typing import Annotated
+from fastapi import Depends
 from form.database.d1 import D1Pool
+from form.database.dependencies import get_database_pool
 
-pool = D1Pool(request.scope["env"].DB)
+
+async def endpoint(pool: Annotated[D1Pool, Depends(get_database_pool)]):
+    async with pool.connection() as connection:
+        return await connection.fetch_one("SELECT name FROM records WHERE id = ?", (1,))
 ```
 
-The caller chooses the backend; no environment mutation or global pool is needed.
-The production binding and its database ID must be configured in Wrangler when a
-real D1 database is provisioned. The SQLite module is not imported by the D1 path.
+The dependency reads `request.scope["env"].DB`, supplied by the Workers ASGI
+integration. It requires `pywrangler`/Workers, not a plain Uvicorn process. Services
+receive `DatabasePool`; CRUDs receive the `DatabaseConnection` from a short scope.
+No connection should be held across an LLM/network call.
 
-Both implementations support scalar parameters (`str`, `int`, `float`, `None`),
-`?`/`?1` placeholders, dictionary rows, and SQL `RETURNING` for generated IDs.
-Convert structured application values such as dates or JSON before binding.
+`execute`, `fetch_one`, and `fetch_all` autocommit individually. Use
+`batch([Statement(...), ...])` for an atomic sequence. A batch cannot depend on
+intermediate application results. There is no public commit/rollback API.
 
-`execute`, `fetch_one`, and `fetch_all` each autocommit. Leaving a connection scope
-does not roll back earlier statements. Use `batch([Statement(...), ...])` for an
-atomic group; the statements and their results retain their input order. A batch
-cannot depend on results computed between its statements. Do not send transaction
-control SQL or hold a connection across an LLM/network call.
+Parameters support `str`, `int`, `float`, `None`, and positional `?`/`?1` bindings.
+Rows are dictionaries. Convert dates and structured values before binding;
+`RETURNING` can return generated IDs. SQL/provider failures propagate without
+retries or logging SQL/parameters. A cancelled write may already have executed;
+callers must not blindly retry it.
 
-SQLite uses aiosqlite to keep filesystem/database work off the event loop. D1 uses
-the Worker binding's asynchronous prepared statements, never the REST API. SQL
-errors propagate without retries or logging SQL/parameters. A cancelled write may
-already have executed, so callers must not blindly retry it.
-SQLite batches finish atomically before cancellation is propagated and before the
-connection can be reused; cancellation therefore does not imply a rollback.
-D1 scalar conversion maps Python `None` to JavaScript `null` explicitly and maps
-SQL null results back to Python `None`.
+References: [Cloudflare local D1](https://developers.cloudflare.com/d1/best-practices/local-development/)
+and [remote bindings](https://developers.cloudflare.com/workers/local-development/#remote-bindings).

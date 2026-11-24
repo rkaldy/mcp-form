@@ -1,4 +1,4 @@
-"""Portable asynchronous SQL contracts for CRUD classes."""
+"""Asynchronous D1 SQL contracts shared by local and hosted database bindings."""
 
 from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager

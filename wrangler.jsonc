@@ -4,6 +4,15 @@
   "main": "src/worker.py",
   "compatibility_date": "2026-11-20",
   "compatibility_flags": ["python_workers"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "form",
+      // Local development uses SQLite managed by Wrangler/Miniflare.
+      // Set database_id to the real Cloudflare database ID before using remote.
+      "remote": false
+    }
+  ],
   "vars": {
     "LLM_MODEL": "openai/gpt-6",
     "LLM_REASONING_EFFORT": "medium"
