@@ -16,6 +16,7 @@ dev = [
     "alembic>=1.20.1",
     "httpx>=0.28.1",
     "mypy",
+    "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
     "pytest-mock>=3.17.0",
@@ -37,4 +38,6 @@ filterwarnings = ['ignore:Items? .* on TypedDict class .* (is|are) using the `Re
 where = ["src"]
 
 [tool.mypy]
+explicit_package_bases = true
+mypy_path = "src"
 plugins = ["pydantic.mypy"]
