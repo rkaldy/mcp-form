@@ -7,10 +7,13 @@ deploy:
 	uv run pywrangler deploy
 
 lint:
-	uv run ruff check --fix src
-	uv run ruff format src
-	uv run mypy src
+	uv run ruff format src tests
+	uv run ruff check --fix src tests
+	uv run mypy src tests
 
 test:
-	uv run pytest tests/unit tests/integration
+	uv run pytest -vv tests/unit tests/integration
+
+test-external:
+	uv run pytest -vv tests/external
 

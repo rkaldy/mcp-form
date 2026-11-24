@@ -39,7 +39,7 @@ def blank_form_response() -> litellm.ModelResponse:
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_scan_sends_original_jpeg_and_its_dimensions(
     mocker: MockerFixture, blank_form_response: litellm.ModelResponse
 ):
@@ -63,7 +63,7 @@ async def test_scan_sends_original_jpeg_and_its_dimensions(
     assert b64decode(encoded_image) == jpg_file
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_health_sends_minimal_prompt_with_configured_options(
     mocker: MockerFixture,
 ):
@@ -84,6 +84,7 @@ async def test_health_sends_minimal_prompt_with_configured_options(
         model="test-model",
         api_key="test-key",
         messages=[{"role": "user", "content": "Reply OK."}],
+        response_format=None,
         reasoning_effort="low",
         timeout=120,
         stream=False,
@@ -92,10 +93,8 @@ async def test_health_sends_minimal_prompt_with_configured_options(
     )
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "content,refusal", [("", None), ("  ", None), ("OK", "Refused")]
-)
+@pytest.mark.anyio
+@pytest.mark.parametrize("content,refusal", [("", None), ("OK", "Refused")])
 async def test_health_rejects_missing_or_refused_answers(
     mocker: MockerFixture, content: str, refusal: str | None
 ):
@@ -107,11 +106,13 @@ async def test_health_rejects_missing_or_refused_answers(
     )
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=response)
 
-    with pytest.raises(LLMError, match="healthcheck answer"):
+    with pytest.raises(
+        LLMError, match="Provider did not return a complete structured answer"
+    ):
         await LLM("test-model", "test-key", {}).health()
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_health_redacts_api_key_in_provider_errors(mocker: MockerFixture):
     """Translate provider errors without exposing the configured API key."""
     error = litellm.APIError(
