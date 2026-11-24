@@ -13,14 +13,11 @@ from litellm.types.utils import Choices
 from openai import APIError
 from pydantic import BaseModel, JsonValue, SecretStr, ValidationError
 
+from form.exceptions import ScanError
 from form.llm.instruction import Instruction
 from form.llm.model import Form
 
 logger = logging.getLogger(__name__)
-
-
-class LLMError(Exception):
-    """Query failure with credential-redacted diagnostics."""
 
 
 class LLM:
@@ -67,7 +64,7 @@ class LLM:
                 not isinstance(result, litellm.ModelResponse)
                 or len(result.choices) != 1
             ):
-                raise LLMError("Provider returned an unexpected response")
+                raise ScanError("Provider returned an unexpected response")
             choice = result.choices[0]
             if (
                 not isinstance(choice, Choices)
@@ -75,7 +72,7 @@ class LLM:
                 or getattr(choice.message, "refusal", None)
                 or not choice.message.content
             ):
-                raise LLMError("Provider did not return a complete structured answer")
+                raise ScanError("Provider did not return a complete structured answer")
             return choice.message.content
         except ValidationError as error:
             message = str(
@@ -89,7 +86,7 @@ class LLM:
         secret = self.api_key.get_secret_value()
         if secret:
             message = message.replace(secret, "***")
-        raise LLMError(message)
+        raise ScanError(message)
 
     async def health(self) -> bool:
         """Check the LLM is ready to user"""
@@ -100,7 +97,7 @@ class LLM:
         """Extract a form from JPEG file contents without changing the image."""
         width, height = imagesize.get(BytesIO(jpg_file), exif_rotation=False)
         if width <= 0 or height <= 0:
-            raise LLMError("Could not determine JPEG image dimensions")
+            raise ScanError("Could not determine JPEG image dimensions")
         image_url = f"data:image/jpeg;base64,{b64encode(jpg_file).decode('ascii')}"
         messages: list[dict] = [
             {"role": "system", "content": Instruction.SCAN.value},
@@ -124,7 +121,7 @@ class LLM:
         try:
             return Form.model_validate_json(result, strict=True, extra="forbid")
         except ValidationError as error:
-            raise LLMError(
+            raise ScanError(
                 str(
                     error.errors(
                         include_input=False, include_context=False, include_url=False

@@ -31,7 +31,7 @@ def llm(caplog: pytest.LogCaptureFixture) -> LLM:
 @pytest.fixture
 def scan_jpg() -> bytes:
     """Load the explicitly supplied scan image before asynchronous test execution."""
-    return Path(__file__).with_name("scan.jpg").read_bytes()
+    return (Path(__file__).parents[0] / "fixtures" / "scan.jpg").read_bytes()
 
 
 @pytest.mark.anyio

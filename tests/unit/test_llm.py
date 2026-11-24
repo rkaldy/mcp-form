@@ -6,7 +6,8 @@ import litellm
 import pytest
 from pytest_mock import MockerFixture
 
-from form.llm.llm import LLM, LLMError
+from form.exceptions import ScanError
+from form.llm.llm import LLM
 from form.llm.model import Form
 
 
@@ -107,7 +108,7 @@ async def test_health_rejects_missing_or_refused_answers(
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=response)
 
     with pytest.raises(
-        LLMError, match="Provider did not return a complete structured answer"
+        ScanError, match="Provider did not return a complete structured answer"
     ):
         await LLM("test-model", "test-key", {}).health()
 
@@ -123,7 +124,7 @@ async def test_health_redacts_api_key_in_provider_errors(mocker: MockerFixture):
     )
     mocker.patch("form.llm.llm.litellm.acompletion", side_effect=error)
 
-    with pytest.raises(LLMError, match="Failure with \\*\\*\\*") as caught:
+    with pytest.raises(ScanError, match="Failure with \\*\\*\\*") as caught:
         await LLM("test-model", "test-key", {}).health()
 
     assert caught.value.__context__ is None
