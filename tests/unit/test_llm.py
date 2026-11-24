@@ -6,7 +6,7 @@ import litellm
 import pytest
 from pytest_mock import MockerFixture
 
-from form.llm.llm import LLM
+from form.llm.llm import LLM, LLMError
 from form.llm.model import Form
 
 
@@ -61,3 +61,68 @@ async def test_scan_sends_original_jpeg_and_its_dimensions(
     header, encoded_image = content[1]["image_url"]["url"].split(",", 1)
     assert header == "data:image/jpeg;base64"
     assert b64decode(encoded_image) == jpg_file
+
+
+@pytest.mark.asyncio
+async def test_health_sends_minimal_prompt_with_configured_options(
+    mocker: MockerFixture,
+):
+    """Check connectivity without sending a form schema or overriding reasoning."""
+    response = litellm.ModelResponse(
+        choices=[{"message": {"role": "assistant", "content": "OK"}}]
+    )
+    completion = mocker.patch("form.llm.llm.litellm.acompletion", return_value=response)
+
+    assert (
+        await LLM(
+            "test-model", "test-key", {"reasoning_effort": "low", "timeout": 120}
+        ).health()
+        is True
+    )
+
+    completion.assert_awaited_once_with(
+        model="test-model",
+        api_key="test-key",
+        messages=[{"role": "user", "content": "Reply OK."}],
+        reasoning_effort="low",
+        timeout=120,
+        stream=False,
+        num_retries=0,
+        drop_params=False,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content,refusal", [("", None), ("  ", None), ("OK", "Refused")]
+)
+async def test_health_rejects_missing_or_refused_answers(
+    mocker: MockerFixture, content: str, refusal: str | None
+):
+    """Reject responses that do not establish successful text generation."""
+    response = litellm.ModelResponse(
+        choices=[
+            {"message": {"role": "assistant", "content": content, "refusal": refusal}}
+        ]
+    )
+    mocker.patch("form.llm.llm.litellm.acompletion", return_value=response)
+
+    with pytest.raises(LLMError, match="healthcheck answer"):
+        await LLM("test-model", "test-key", {}).health()
+
+
+@pytest.mark.asyncio
+async def test_health_redacts_api_key_in_provider_errors(mocker: MockerFixture):
+    """Translate provider errors without exposing the configured API key."""
+    error = litellm.APIError(
+        status_code=500,
+        message="Failure with test-key",
+        llm_provider="test-provider",
+        model="test-model",
+    )
+    mocker.patch("form.llm.llm.litellm.acompletion", side_effect=error)
+
+    with pytest.raises(LLMError, match="Failure with \\*\\*\\*") as caught:
+        await LLM("test-model", "test-key", {}).health()
+
+    assert caught.value.__context__ is None

@@ -49,6 +49,40 @@ class LLM:
             json.dumps(truncate(json.loads(json_data)), ensure_ascii=False),
         )
 
+    async def health(self) -> bool:
+        """Return True for a nonempty response; raise LLMError on provider failure."""
+        try:
+            result = await litellm.acompletion(
+                **self.config,
+                model=self.model,
+                api_key=self.api_key.get_secret_value(),
+                messages=[{"role": "user", "content": "Reply OK."}],
+                stream=False,
+                num_retries=0,
+                drop_params=False,
+            )
+        except APIError as error:
+            message = str(error)
+        else:
+            if (
+                not isinstance(result, litellm.ModelResponse)
+                or len(result.choices) != 1
+            ):
+                raise LLMError("Provider returned an unexpected response")
+            choice = result.choices[0]
+            if (
+                not isinstance(choice, Choices)
+                or getattr(choice.message, "refusal", None)
+                or not choice.message.content
+                or not choice.message.content.strip()
+            ):
+                raise LLMError("Provider did not return a healthcheck answer")
+            return True
+        secret = self.api_key.get_secret_value()
+        if secret:
+            message = message.replace(secret, "***")
+        raise LLMError(message)
+
     async def scan(self, jpg_file: bytes) -> Form:
         """Extract a form from JPEG file contents without changing the image."""
         width, height = imagesize.get(BytesIO(jpg_file), exif_rotation=False)
