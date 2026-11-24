@@ -1,4 +1,4 @@
-"""Opt-in live provider tests; see README.md for isolated credentials and costs."""
+"""Opt-in live provider tests using the application's current configuration."""
 
 import logging
 import os
@@ -22,10 +22,10 @@ pytestmark = [
 
 @pytest.fixture
 def external_llm(caplog: pytest.LogCaptureFixture) -> LLM:
-    """Use dedicated test credentials without loading the application's .env."""
-    settings = Settings(_env_prefix="EXTERNAL_", _env_file=None)
+    """Load the current application settings from the environment and .env."""
+    settings = Settings()
     if not settings.llm_api_key.get_secret_value():
-        pytest.fail("EXTERNAL_LLM_API_KEY must contain a dedicated test API key")
+        pytest.fail("LLM_API_KEY must contain an API key")
     caplog.set_level(logging.WARNING, logger="form.llm.llm")
     config: dict[str, Any] = {"timeout": 120}
     if settings.llm_reasoning_effort is not None:
