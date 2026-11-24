@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from form.llm.llm import LLM
-from form.llm.model import Form, Name, StaticFields
+from form.llm.model import Form, Name
 from form.settings import Settings
 
 
@@ -46,7 +46,12 @@ async def test_llm_scan(llm: LLM, scan_jpg: bytes):
     result = await llm.scan(scan_jpg)
 
     assert isinstance(result, Form)
-    assert "Lískáček svépomocná skupina" in result.static_fields.activity_name.value
+    assert (
+        result.static_fields.activity_name.value
+        == "Lískáček svépomocná skupina pro rodiče s dětmi"
+    )
     assert result.static_fields.date.value == date(2026, 11, 9)
-    assert result.table_fields[0].name.value == Name(first_name="Katarína", surname="Garlíková")
+    assert result.table_fields[0].name.value == Name(
+        first_name="Katarína", surname="Garlíková"
+    )
     pprint(result)

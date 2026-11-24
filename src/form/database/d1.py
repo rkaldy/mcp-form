@@ -1,10 +1,17 @@
 """Use Cloudflare's D1 binding for both Wrangler local SQLite and hosted D1."""
 
-from collections.abc import AsyncIterator, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import NotRequired, Protocol, TypedDict
 
-from form.database import DatabaseConnection, QueryResult, Row, SQLValue, Statement
+type SQLValue = str | int | float | None
+type Row = dict[str, SQLValue]
+
+
+@dataclass(frozen=True)
+class QueryResult:
+    rows: list[Row] = field(default_factory=list)
+    changes: int = 0
 
 
 class _Metadata(TypedDict):
@@ -31,10 +38,6 @@ class D1Binding(Protocol):
 
     def prepare(self, sql: str) -> D1PreparedStatement: ...
 
-    async def batch(
-        self, statements: list[D1PreparedStatement]
-    ) -> Sequence[D1Result]: ...
-
 
 def _result(data: D1Result) -> QueryResult:
     if not data["success"]:
@@ -47,6 +50,11 @@ def _result(data: D1Result) -> QueryResult:
 
 
 class D1Connection:
+    """Adapt a D1 binding for CRUD calls; statements autocommit independently.
+
+    No connection is opened or held. SQL/provider errors propagate without retries.
+    """
+
     def __init__(self, binding: D1Binding):
         self._binding = binding
 
@@ -74,23 +82,3 @@ class D1Connection:
         self, sql: str, parameters: Sequence[SQLValue] = ()
     ) -> list[Row]:
         return (await self.execute(sql, parameters)).rows
-
-    async def batch(self, statements: Sequence[Statement]) -> list[QueryResult]:
-        if not statements:
-            return []
-        prepared = [
-            self._prepare(statement.sql, statement.parameters)
-            for statement in statements
-        ]
-        return [_result(result) for result in await self._binding.batch(prepared)]
-
-
-class D1Pool:
-    """Use an injected Worker binding; no physical connection or transaction is opened."""
-
-    def __init__(self, binding: D1Binding):
-        self._binding = binding
-
-    @asynccontextmanager
-    async def connection(self) -> AsyncIterator[DatabaseConnection]:
-        yield D1Connection(self._binding)

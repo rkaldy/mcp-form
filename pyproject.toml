@@ -12,11 +12,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "alembic>=1.20.1",
     "mypy",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
     "pytest-mock>=3.17.0",
     "ruff",
+    "sqlalchemy>=2.1.9",
     "workers-py>=1.17.9",
     "workers-runtime-sdk>=1.9.6",
 ]
