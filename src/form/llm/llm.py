@@ -4,27 +4,31 @@ import json
 import logging
 from base64 import b64encode
 from io import BytesIO
-from typing import Any
+from typing import Annotated, Any
 
 # imagesize is pure Python but does not publish typing metadata or stubs.
 import imagesize  # type: ignore[import-untyped]
 import litellm
+from fastapi import Depends
 from litellm.types.utils import Choices
 from openai import APIError
-from pydantic import BaseModel, JsonValue, SecretStr, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 
 from form.exceptions import ScanError
 from form.llm.instruction import Instruction
 from form.model.form import Form
+from form.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
 
 class LLM:
-    def __init__(self, model: str, api_key: str, config: dict[str, Any]):
-        self.model = model
-        self.api_key = SecretStr(api_key)
-        self.config = config
+    def __init__(self, settings: Settings):
+        self.model = settings.llm_model
+        self.api_key = settings.llm_api_key
+        self.config: dict[str, Any] = {"timeout": settings.llm_timeout}
+        if settings.llm_reasoning_effort is not None:
+            self.config["reasoning_effort"] = settings.llm_reasoning_effort
 
     @staticmethod
     def _log(event: str, json_data: str):
@@ -128,3 +132,7 @@ class LLM:
                     )
                 )
             )
+
+
+def get_llm(settings: Annotated[Settings, Depends(get_settings)]):
+    return LLM(settings)

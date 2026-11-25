@@ -4,6 +4,9 @@ from pathlib import Path
 import litellm
 import pytest
 
+from form.llm.llm import LLM
+from form.settings import Settings
+
 
 @pytest.fixture
 def blank_form_response() -> litellm.ModelResponse:
@@ -38,3 +41,8 @@ def blank_form_response() -> litellm.ModelResponse:
 def scan_jpeg() -> bytes:
     """Load the synthetic JPEG before entering asynchronous test execution."""
     return (Path(__file__).parents[1] / "fixtures" / "blank.jpg").read_bytes()
+
+
+@pytest.fixture
+def llm(settings: Settings) -> LLM:
+    return LLM(settings)

@@ -7,18 +7,22 @@ from pytest_mock import MockerFixture
 from form.exceptions import ScanError
 from form.llm.llm import LLM
 from form.model.form import Form
+from form.settings import Settings
 
 
 @pytest.mark.anyio
 async def test_scan_sends_original_jpeg_and_its_dimensions(
-    mocker: MockerFixture, blank_form_response: litellm.ModelResponse, scan_jpeg: bytes
+    mocker: MockerFixture,
+    blank_form_response: litellm.ModelResponse,
+    scan_jpeg: bytes,
+    llm: LLM,
 ):
     """Send JPEG bytes with their dimensions and validate the provider response."""
     completion = mocker.patch(
         "form.llm.llm.litellm.acompletion", return_value=blank_form_response
     )
 
-    result = await LLM("test-model", "test-key", {}).scan(scan_jpeg)
+    result = await llm.scan(scan_jpeg)
 
     assert isinstance(result, Form)
     assert result.static_fields.activity_name.value is None
@@ -35,27 +39,25 @@ async def test_scan_sends_original_jpeg_and_its_dimensions(
 @pytest.mark.anyio
 async def test_health_sends_minimal_prompt_with_configured_options(
     mocker: MockerFixture,
+    llm: LLM,
+    settings: Settings,
 ):
     """Check connectivity without sending a form schema or overriding reasoning."""
     response = litellm.ModelResponse(
         choices=[{"message": {"role": "assistant", "content": "OK"}}]
     )
     completion = mocker.patch("form.llm.llm.litellm.acompletion", return_value=response)
+    llm.config["reasoning_effort"] = "low"
 
-    assert (
-        await LLM(
-            "test-model", "test-key", {"reasoning_effort": "low", "timeout": 120}
-        ).health()
-        is True
-    )
+    assert await llm.health() is True
 
     completion.assert_awaited_once_with(
-        model="test-model",
-        api_key="test-key",
+        model=settings.llm_model,
+        api_key=settings.llm_api_key.get_secret_value(),
         messages=[{"role": "user", "content": "Reply OK."}],
         response_format=None,
         reasoning_effort="low",
-        timeout=120,
+        timeout=settings.llm_timeout,
         stream=False,
         num_retries=0,
         drop_params=False,
@@ -65,7 +67,7 @@ async def test_health_sends_minimal_prompt_with_configured_options(
 @pytest.mark.anyio
 @pytest.mark.parametrize("content,refusal", [("", None), ("OK", "Refused")])
 async def test_health_rejects_missing_or_refused_answers(
-    mocker: MockerFixture, content: str, refusal: str | None
+    mocker: MockerFixture, content: str, refusal: str | None, llm: LLM
 ):
     """Reject responses that do not establish successful text generation."""
     response = litellm.ModelResponse(
@@ -78,21 +80,23 @@ async def test_health_rejects_missing_or_refused_answers(
     with pytest.raises(
         ScanError, match="Provider did not return a complete structured answer"
     ):
-        await LLM("test-model", "test-key", {}).health()
+        await llm.health()
 
 
 @pytest.mark.anyio
-async def test_health_redacts_api_key_in_provider_errors(mocker: MockerFixture):
+async def test_health_redacts_api_key_in_provider_errors(
+    mocker: MockerFixture, llm: LLM
+):
     """Translate provider errors without exposing the configured API key."""
     error = litellm.APIError(
         status_code=500,
-        message="Failure with test-key",
+        message=f"Failure with {llm.api_key.get_secret_value()}",
         llm_provider="test-provider",
-        model="test-model",
+        model=llm.model,
     )
     mocker.patch("form.llm.llm.litellm.acompletion", side_effect=error)
 
     with pytest.raises(ScanError, match="Failure with \\*\\*\\*") as caught:
-        await LLM("test-model", "test-key", {}).health()
+        await llm.health()
 
     assert caught.value.__context__ is None

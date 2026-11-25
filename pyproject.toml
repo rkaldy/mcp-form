@@ -3,17 +3,19 @@ name = "form"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi>=0.165.0",
     "imagesize>=2.0.1",
     "litellm>=1.110.2",
     "pillow>=12.2,<12.3",
     "pydantic",
     "pydantic-settings>=2.16.3",
+    "sqlalchemy>=2.1.9",
+    "uvicorn>=0.38",
 ]
 
 [dependency-groups]
 dev = [
-    "alembic>=1.20.1",
     "freezegun>=1.5.5",
     "httpx>=0.28.1",
     "mypy",
@@ -22,9 +24,6 @@ dev = [
     "pytest-asyncio>=1.5.0",
     "pytest-mock>=3.17.0",
     "ruff",
-    "sqlalchemy>=2.1.9",
-    "workers-py>=1.17.9",
-    "workers-runtime-sdk>=1.9.6",
 ]
 
 [build-system]

@@ -1,28 +1,19 @@
-"""Local JPEG transforms and image persistence through the R2 binding."""
+"""Local JPEG transforms and image persistence on the application data volume."""
 
 from io import BytesIO
-from typing import Protocol
 from uuid import UUID
 
+from anyio import Path
 from PIL import Image, ImageOps
 
 from form.exceptions import UserInputError
 from form.llm.model import BoundingBox
-
-
-class R2Object(Protocol):
-    async def arrayBuffer(self) -> memoryview: ...
-
-
-class R2Bucket(Protocol):
-    async def put(self, key: str, data: bytes) -> object: ...
-    async def get(self, key: str) -> R2Object | None: ...
-    async def delete(self, key: str): ...
+from form.settings import Settings
 
 
 class ImageService:
-    def __init__(self, bucket: R2Bucket):
-        self.bucket = bucket
+    def __init__(self, settings: Settings):
+        self.directory = Path(settings.images_path)
 
     def normalize(self, image: bytes) -> bytes:
         """Apply EXIF orientation and return a JPEG without orientation metadata."""
@@ -47,19 +38,17 @@ class ImageService:
                 return self._jpeg(cropped)
 
     async def save(self, image_id: UUID, image: bytes):
-        """Store the supplied bytes unchanged under the UUID's canonical string."""
-        await self.bucket.put(str(image_id), image)
+        await self.directory.mkdir(parents=True, exist_ok=True)
+        await self._image_file(image_id).write_bytes(image)
 
     async def load(self, image_id: UUID) -> bytes:
-        """Load stored bytes; raise FileNotFoundError when the UUID is absent."""
-        image = await self.bucket.get(str(image_id))
-        if image is None:
-            raise FileNotFoundError("Image not found")
-        return bytes(await image.arrayBuffer())
+        return await self._image_file(image_id).read_bytes()
 
     async def delete(self, image_id: UUID):
-        """Delete the stored image under the UUID's canonical string."""
-        await self.bucket.delete(str(image_id))
+        await self._image_file(image_id).unlink(missing_ok=True)
+
+    def _image_file(self, image_id: UUID) -> Path:
+        return self.directory / f"{image_id}.jpg"
 
     @staticmethod
     def _jpeg(image: Image.Image) -> bytes:

@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, JsonValue, ValidationError
 
 from form.crud.session import SessionCRUD
-from form.database.d1 import D1Binding, D1Connection
+from form.database.database import Database
 from form.exceptions import ScanError, UserInputError
 from form.llm.llm import LLM
 from form.llm.model import BoundingBox, FieldType, FormField, Name
@@ -33,13 +33,13 @@ logger = logging.getLogger(__name__)
 class ScanService:
     def __init__(
         self,
-        binding: D1Binding,
+        database: Database,
         images: ImageService,
         llm: LLM,
         processing: ProcessingService,
         settings: Settings,
     ):
-        self.binding = binding
+        self.database = database
         self.images = images
         self.llm = llm
         self.processing = processing
@@ -103,7 +103,8 @@ class ScanService:
         return current
 
     async def get(self, session_id: UUID) -> Session:
-        session = await self.crud.get(D1Connection(self.binding), session_id)
+        with self.database.connect() as connection:
+            session = self.crud.get(connection, session_id)
         if session is None:
             raise UserInputError("Session not found")
         return session
@@ -111,7 +112,8 @@ class ScanService:
     async def delete(self, session_id: UUID):
         try:
             await self.images.delete(session_id)
-            await self.crud.delete(D1Connection(self.binding), session_id)
+            with self.database.connect() as connection:
+                self.crud.delete(connection, session_id)
         except Exception:  # noqa: BLE001 -- best-effort cleanup must neither mask the original error nor expose provider payloads.
             logger.error(
                 "Session cleanup failed", extra={"session_id": str(session_id)}
@@ -127,12 +129,14 @@ class ScanService:
                 extracted_data=None,
                 status=SessionStatus.SCANNING,
             )
-            await self.crud.create(D1Connection(self.binding), session)
+            with self.database.connect() as conn:
+                self.crud.create(conn, session)
             await self.images.save(session.session_id, image)
             form = await self.llm.scan(image)
             session.extracted_data = json.loads(form.model_dump_json())
             session.status = SessionStatus.REVIEWING
-            await self.crud.update(D1Connection(self.binding), session)
+            with self.database.connect() as conn:
+                self.crud.update(conn, session)
             reviews = self.review_fields(form)
         except Exception as error:
             if session is not None:
@@ -186,10 +190,12 @@ class ScanService:
         """Persist each lifecycle state; cleanup failures never fail successful processing."""
         try:
             session.status = SessionStatus.PROCESSING
-            await self.crud.update(D1Connection(self.binding), session)
+            with self.database.connect() as conn:
+                self.crud.update(conn, session)
             await self.processing.process(session.extracted_data)
             session.status = SessionStatus.FINISHED
-            await self.crud.update(D1Connection(self.binding), session)
+            with self.database.connect() as conn:
+                self.crud.update(conn, session)
         except Exception as error:
             await self.delete(session.session_id)
             raise ScanError("Form processing failed") from error
@@ -198,10 +204,8 @@ class ScanService:
     async def clean(self):
         """Best-effort cleanup of finished or expired sessions; future cron entrypoint."""
         try:
-            sessions = await self.crud.expired(
-                D1Connection(self.binding),
-                datetime.now(UTC) - self.session_ttl,
-            )
+            with self.database.connect() as conn:
+                sessions = self.crud.expired(conn, datetime.now(UTC) - self.session_ttl)
         except Exception:  # noqa: BLE001 -- cron cleanup failures are logged without returning errors or provider payloads.
             logger.error("Could not select sessions for cleanup")
             return

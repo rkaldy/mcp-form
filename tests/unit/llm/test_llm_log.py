@@ -39,11 +39,12 @@ async def test_scan_truncates_debug_log_without_modifying_result(
     caplog: pytest.LogCaptureFixture,
     long_form_response: litellm.ModelResponse,
     scan_jpeg: bytes,
+    llm: LLM,
 ):
     """Public scan logs abbreviated nested text while returning the complete extraction."""
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=long_form_response)
     with caplog.at_level(logging.DEBUG, logger="form.llm.llm"):
-        result = await LLM("test-model", "test-key", {}).scan(scan_jpeg)
+        result = await llm.scan(scan_jpeg)
 
     records = [record for record in caplog.records if record.name == "form.llm.llm"]
     assert len(records) == 1
@@ -69,9 +70,10 @@ async def test_scan_does_not_log_form_without_debug(
     caplog: pytest.LogCaptureFixture,
     long_form_response: litellm.ModelResponse,
     scan_jpeg: bytes,
+    llm: LLM,
 ):
     """A normal scan produces no form payload log when debug logging is disabled."""
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=long_form_response)
     with caplog.at_level(logging.INFO, logger="form.llm.llm"):
-        await LLM("test-model", "test-key", {}).scan(scan_jpeg)
+        await llm.scan(scan_jpeg)
     assert not [record for record in caplog.records if record.name == "form.llm.llm"]

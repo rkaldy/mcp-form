@@ -15,24 +15,9 @@ class ExternalSettings(Settings):
 
 
 @pytest.fixture
-def settings() -> Settings:
-    """Load dedicated EXTERNAL_LLM_* credentials from the environment or .env.external."""
-    return ExternalSettings()
-
-
-@pytest.fixture
-def llm(settings: Settings) -> LLM:
-    """Use the external settings fixture for live provider calls."""
-    if not settings.llm_api_key.get_secret_value():
-        pytest.fail("EXTERNAL_LLM_API_KEY must contain a dedicated test API key")
-    config: dict[str, str | int] = {"timeout": 120}
-    if settings.llm_reasoning_effort is not None:
-        config["reasoning_effort"] = settings.llm_reasoning_effort
-    return LLM(
-        settings.llm_model,
-        settings.llm_api_key.get_secret_value(),
-        config,
-    )
+def llm() -> LLM:
+    """Use local .env for LLM credentials"""
+    return LLM(Settings())
 
 
 @pytest.fixture

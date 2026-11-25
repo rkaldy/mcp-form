@@ -3,17 +3,16 @@ from collections.abc import AsyncIterator
 from datetime import date
 from io import BytesIO
 from pathlib import Path
-from types import SimpleNamespace
+from sqlite3 import Connection
 
 import httpx
 import pytest
 from PIL import Image
 from pytest_mock import MockerFixture
-from starlette.types import Receive, Scope, Send
 
 from form.app import app
 from form.crud.session import SessionCRUD
-from form.database.d1 import D1Binding, D1Connection
+from form.database.database import Database
 from form.llm.model import FieldType, Name
 from form.model.form import Form
 from form.model.session import (
@@ -22,7 +21,9 @@ from form.model.session import (
     ScanResponse,
     ToReview,
 )
-from form.service.image import R2Bucket
+from form.service.dependencies import get_scan_service
+from form.service.image import ImageService
+from form.service.scan import ScanService
 from form.settings import Settings
 
 
@@ -56,10 +57,8 @@ def expected_crops() -> dict[str, tuple[tuple[int, int], bytes]]:
 
 
 @pytest.fixture
-def llm(mocker: MockerFixture, form_data: Form):
-    llm = mocker.patch("form.service.dependencies.LLM", autospec=True).return_value
-    llm.scan.return_value = form_data
-    return llm
+def image_service(settings: Settings) -> ImageService:
+    return ImageService(settings)
 
 
 @pytest.fixture
@@ -70,26 +69,28 @@ def processing_service(mocker: MockerFixture):
 
 
 @pytest.fixture
-async def client(
-    db_binding: D1Binding,
-    local_r2_bucket: R2Bucket,
+def scan_service(
+    mocker: MockerFixture,
     settings: Settings,
-    llm,
+    database: Database,
+    form_data: Form,
+    image_service: ImageService,
     processing_service,
-) -> AsyncIterator[httpx.AsyncClient]:
-    """Exercise production dependency wiring using real SQLite and local Wrangler R2."""
-    env = SimpleNamespace(
-        DB=db_binding,
-        FORM_IMAGES=local_r2_bucket,
-        **{name.upper(): value for name, value in settings.model_dump().items()},
+):
+    llm = mocker.patch("form.service.dependencies.LLM", autospec=True).return_value
+    llm.scan.return_value = form_data
+
+    app.dependency_overrides[get_scan_service] = lambda: ScanService(
+        database, image_service, llm, processing_service, settings
     )
+    yield
+    app.dependency_overrides.pop(get_scan_service)
 
-    async def application(scope: Scope, receive: Receive, send: Send):
-        scope["env"] = env
-        await app(scope, receive, send)
 
+@pytest.fixture
+async def client() -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=application), base_url="http://test"
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
 
@@ -100,9 +101,10 @@ async def test_scan_happy_path(
     form_image: bytes,
     form_data: Form,
     expected_crops: dict[str, tuple[tuple[int, int], bytes]],
-    db_connection: D1Connection,
-    local_r2_bucket: R2Bucket,
-    llm,
+    db_conn: Connection,
+    settings: Settings,
+    scan_service,
+    image_service,
     processing_service,
 ):
     """Scan via HTTP, review two real image crops, process corrections and remove session."""
@@ -163,7 +165,8 @@ async def test_scan_happy_path(
             json.loads(corrected.model_dump_json())
         )
 
-        assert await SessionCRUD().get(db_connection, scan.session_id) is None
-        assert await local_r2_bucket.get(str(scan.session_id)) is None
+        assert SessionCRUD().get(db_conn, scan.session_id) is None
+        with pytest.raises(FileNotFoundError):
+            await image_service.load(scan.session_id)
     finally:
-        await local_r2_bucket.delete(str(scan.session_id))
+        await image_service.delete(scan.session_id)

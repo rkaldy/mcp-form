@@ -9,7 +9,7 @@
 
 ## Databázové připojení
 
-- Pro připojení k databázi použij D1. Pro lokální vývoj použij lokální sqlite databázi ve `wrangler/.state`
+- Použij sqlite3 databázi a adaptér `Database`.
 - Vytvoření připojení je zodpovědnost servis. CRUDy přijímají připojení z parametru.
 - Nepoužívej v kódu explicitní commit a rollback
 - Připojení se vytvoří jen během volání CRUDů. Lze použít jedno připojení, pokud mezi voláním CRUDů je pouze lokální zpracování bez I/O nebo volání externích služeb. Připojení ani transakci nedrž věhem volání externí služby (LLM apod.)

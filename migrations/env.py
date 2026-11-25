@@ -1,19 +1,11 @@
-"""Apply migrations to SQLite or emit SQL for the D1 binding."""
+"""Apply migrations to the configured SQLite database."""
 
 from alembic import context
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy import create_engine
+from sqlalchemy import URL, create_engine
 from sqlalchemy.pool import NullPool
 
 from form.database.schema import metadata
-
-
-class MigrationSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", extra="ignore", hide_input_in_errors=True
-    )
-
-    database_url: str
+from form.settings import Settings
 
 
 def run_migrations_offline():
@@ -31,7 +23,9 @@ def run_migrations_offline():
 def run_migrations_online():
     url = context.config.get_main_option("sqlalchemy.url")
     if not url:
-        url = MigrationSettings().database_url
+        path = Settings().database_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        url = URL.create("sqlite", database=str(path))
     engine = create_engine(url, poolclass=NullPool)
     try:
         with engine.connect() as connection:

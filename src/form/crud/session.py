@@ -1,10 +1,9 @@
-"""Session persistence through parameterized D1 SQL."""
-
 import json
+from contextlib import closing
 from datetime import datetime
+from sqlite3 import Connection, Row
 from uuid import UUID
 
-from form.database.d1 import D1Connection, Row
 from form.model.session import Session, SessionStatus
 
 
@@ -16,8 +15,8 @@ class SessionCRUD:
             raise TypeError("Session extracted_data must contain JSON text")
         return Session.model_validate({**row, "extracted_data": json.loads(encoded)})
 
-    async def create(self, connection: D1Connection, session: Session):
-        await connection.execute(
+    def create(self, db_conn: Connection, session: Session):
+        db_conn.execute(
             "INSERT INTO sessions (session_id, created_at, extracted_data, status) VALUES (?, ?, ?, ?)",
             (
                 str(session.session_id),
@@ -27,15 +26,19 @@ class SessionCRUD:
             ),
         )
 
-    async def get(self, connection: D1Connection, session_id: UUID) -> Session | None:
-        row = await connection.fetch_one(
-            "SELECT session_id, created_at, extracted_data, status FROM sessions WHERE session_id = ?",
-            (str(session_id),),
-        )
+    def get(self, db_conn: Connection, session_id: UUID) -> Session | None:
+        with closing(
+            db_conn.execute(
+                "SELECT session_id, created_at, extracted_data, status FROM sessions WHERE session_id = ?",
+                (str(session_id),),
+            )
+        ) as cursor:
+            cursor.row_factory = Row
+            row = cursor.fetchone()
         return self._from_row(row) if row is not None else None
 
-    async def update(self, connection: D1Connection, session: Session):
-        await connection.execute(
+    def update(self, db_conn: Connection, session: Session):
+        db_conn.execute(
             "UPDATE sessions SET extracted_data = ?, status = ? WHERE session_id = ?",
             (
                 json.dumps(session.extracted_data, ensure_ascii=False, allow_nan=False),
@@ -44,18 +47,18 @@ class SessionCRUD:
             ),
         )
 
-    async def delete(self, connection: D1Connection, session_id: UUID):
-        await connection.execute(
-            "DELETE FROM sessions WHERE session_id = ?", (str(session_id),)
-        )
+    def delete(self, db_conn: Connection, session_id: UUID):
+        db_conn.execute("DELETE FROM sessions WHERE session_id = ?", (str(session_id),))
 
-    async def expired(
-        self, connection: D1Connection, before: datetime
-    ) -> list[Session]:
+    def expired(self, db_conn: Connection, before: datetime) -> list[Session]:
         """Select finished sessions and sessions created before the UTC cutoff."""
-        rows = await connection.fetch_all(
-            "SELECT session_id, created_at, extracted_data, status FROM sessions "
-            "WHERE status = ? OR created_at < ?",
-            (SessionStatus.FINISHED.value, before.isoformat()),
-        )
+        with closing(
+            db_conn.execute(
+                "SELECT session_id, created_at, extracted_data, status FROM sessions "
+                "WHERE status = ? OR created_at < ?",
+                (SessionStatus.FINISHED.value, before.isoformat()),
+            )
+        ) as cursor:
+            cursor.row_factory = Row
+            rows = cursor.fetchall()
         return [self._from_row(row) for row in rows]

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from sqlite3 import Connection
 from uuid import UUID, uuid4
 
 import pytest
@@ -6,18 +7,26 @@ from freezegun import freeze_time
 from pydantic import JsonValue
 
 from form.crud.session import SessionCRUD
-from form.database.d1 import D1Connection
+from form.database.database import Database
 from form.exceptions import ScanError, UserInputError
 from form.llm.model import FieldType
 from form.model.form import Form
 from form.model.session import Review, ReviewRequest, Session, SessionStatus
 from form.service.scan import ScanService
+from form.settings import Settings
+
+
+@pytest.fixture
+def scan_service(
+    database: Database, image_service, llm, processing_service, settings: Settings
+) -> ScanService:
+    return ScanService(database, image_service, llm, processing_service, settings)
 
 
 @pytest.mark.anyio
 async def test_scan(
     scan_service: ScanService,
-    db_connection: D1Connection,
+    db_conn: Connection,
     image_service,
     llm,
     processing_service,
@@ -35,15 +44,14 @@ async def test_scan(
     assert response.reviews[0].type == FieldType.INTEGER
     assert response.reviews[1].type == FieldType.NAME
     assert response.reviews[1].bounding_box is None
-    session = await SessionCRUD().get(db_connection, response.session_id)
+    session = SessionCRUD().get(db_conn, response.session_id)
     assert session is not None and session.status == SessionStatus.REVIEWING
     processing_service.process.assert_not_awaited()
-
     image_service.delete.assert_not_awaited()
 
 
 @pytest.fixture
-async def review_session(db_connection: D1Connection, form: Form) -> Session:
+def review_session(db_conn: Connection, form: Form) -> Session:
     """Prepare an extracted session directly in the database without scanning an image."""
     session = Session(
         session_id=uuid4(),
@@ -51,7 +59,7 @@ async def review_session(db_connection: D1Connection, form: Form) -> Session:
         extracted_data=form.model_dump(mode="json"),
         status=SessionStatus.REVIEWING,
     )
-    await SessionCRUD().create(db_connection, session)
+    SessionCRUD().create(db_conn, session)
     return session
 
 
@@ -59,7 +67,7 @@ async def review_session(db_connection: D1Connection, form: Form) -> Session:
 async def test_review(
     scan_service: ScanService,
     review_session: Session,
-    db_connection: D1Connection,
+    db_conn: Connection,
     image_service,
     processing_service,
 ):
@@ -82,13 +90,13 @@ async def test_review(
     assert processed["static_fields"]["member_count"]["confidence"] == 74
     assert processed["table_fields"][0]["name"]["value"]["first_name"] == "Corrected"
     image_service.delete.assert_awaited_once_with(review_session.session_id)
-    assert await SessionCRUD().get(db_connection, review_session.session_id) is None
+    assert SessionCRUD().get(db_conn, review_session.session_id) is None
 
 
 @pytest.mark.anyio
 async def test_session_lifecycle_at_external_boundaries(
     scan_service: ScanService,
-    db_connection: D1Connection,
+    db_conn: Connection,
     image_service,
     llm,
     form: Form,
@@ -97,7 +105,7 @@ async def test_session_lifecycle_at_external_boundaries(
     """External calls observe the preceding persisted status, including FINISHED before deletion."""
 
     async def save(image_id: UUID, data: bytes):
-        session = await SessionCRUD().get(db_connection, image_id)
+        session = SessionCRUD().get(db_conn, image_id)
         assert session is not None and session.status == SessionStatus.SCANNING
         assert session.extracted_data is None
 
@@ -105,12 +113,12 @@ async def test_session_lifecycle_at_external_boundaries(
     response = await scan_service.scan(b"jpeg")
 
     async def process(data: JsonValue):
-        session = await SessionCRUD().get(db_connection, response.session_id)
+        session = SessionCRUD().get(db_conn, response.session_id)
         assert session is not None and session.status == SessionStatus.PROCESSING
         assert session.extracted_data == data
 
     async def delete(image_id: UUID):
-        session = await SessionCRUD().get(db_connection, image_id)
+        session = SessionCRUD().get(db_conn, image_id)
         assert session is not None and session.status == SessionStatus.FINISHED
 
     processing_service.process.side_effect = process
@@ -131,14 +139,14 @@ async def test_session_lifecycle_at_external_boundaries(
 )
 async def test_invalid_review_preserves_session(
     scan_service: ScanService,
-    db_connection: D1Connection,
+    db_conn: Connection,
     image_service,
     processing_service,
     mode: str,
 ):
     """Reject user mistakes before persisting edits, processing or deleting an image."""
     response = await scan_service.scan(b"jpeg")
-    before = await SessionCRUD().get(db_connection, response.session_id)
+    before = SessionCRUD().get(db_conn, response.session_id)
     reviews = [Review(path=item.path, value=item.value) for item in response.reviews]
     if mode == "type":
         reviews[0].value = "not a number"
@@ -156,7 +164,7 @@ async def test_invalid_review_preserves_session(
         await scan_service.review(
             ReviewRequest(session_id=response.session_id, reviews=reviews)
         )
-    assert await SessionCRUD().get(db_connection, response.session_id) == before
+    assert SessionCRUD().get(db_conn, response.session_id) == before
     processing_service.process.assert_not_awaited()
     image_service.delete.assert_not_awaited()
 
@@ -187,7 +195,7 @@ async def test_table_paths_include_row_indexes(scan_service: ScanService, form: 
 
 @pytest.mark.anyio
 async def test_normalization_failure_creates_no_session(
-    scan_service: ScanService, image_service, db_connection: D1Connection, llm
+    scan_service: ScanService, image_service, db_conn: Connection, llm
 ):
     """Do not persist or upload anything if normalization fails at the start of scan."""
     image_service.normalize.side_effect = OSError("synthetic image failure")
@@ -196,12 +204,12 @@ async def test_normalization_failure_creates_no_session(
     image_service.save.assert_not_awaited()
     image_service.delete.assert_not_awaited()
     llm.scan.assert_not_awaited()
-    assert await db_connection.fetch_all("SELECT session_id FROM sessions") == []
+    assert db_conn.execute("SELECT session_id FROM sessions").fetchall() == []
 
 
 @pytest.mark.anyio
 async def test_llm_failure_removes_image_and_session(
-    scan_service: ScanService, image_service, llm, db_connection: D1Connection
+    scan_service: ScanService, image_service, llm, db_conn: Connection
 ):
     """Translate provider failures with their cause after removing both resources."""
     error = RuntimeError("synthetic provider failure")
@@ -211,7 +219,7 @@ async def test_llm_failure_removes_image_and_session(
     assert caught.value.__cause__ is error
     image_id = image_service.save.call_args.args[0]
     image_service.delete.assert_awaited_once_with(image_id)
-    assert await SessionCRUD().get(db_connection, image_id) is None
+    assert SessionCRUD().get(db_conn, image_id) is None
 
 
 @pytest.mark.anyio
@@ -219,7 +227,7 @@ async def test_processing_failure_cleans_session(
     scan_service: ScanService,
     processing_service,
     image_service,
-    db_connection: D1Connection,
+    db_conn: Connection,
 ):
     """A failed processor is not retried and triggers image-then-session cleanup."""
     response = await scan_service.scan(b"jpeg")
@@ -238,14 +246,14 @@ async def test_processing_failure_cleans_session(
         )
     processing_service.process.assert_awaited_once()
     image_service.delete.assert_awaited_once_with(response.session_id)
-    assert await SessionCRUD().get(db_connection, response.session_id) is None
+    assert SessionCRUD().get(db_conn, response.session_id) is None
 
 
 @pytest.mark.anyio
 @freeze_time("2026-01-02T00:00:00+00:00", real_asyncio=True)
 async def test_clean_finished_and_old_sessions(
     scan_service: ScanService,
-    db_connection: D1Connection,
+    db_conn: Connection,
     image_service,
     processing_service,
 ):
@@ -256,7 +264,7 @@ async def test_clean_finished_and_old_sessions(
         status=SessionStatus.REVIEWING,
         extracted_data=None,
     )
-    await SessionCRUD().create(db_connection, recent)
+    SessionCRUD().create(db_conn, recent)
     removed = []
     for status in SessionStatus:
         session = Session(
@@ -265,7 +273,7 @@ async def test_clean_finished_and_old_sessions(
             status=status,
             extracted_data=None,
         )
-        await SessionCRUD().create(db_connection, session)
+        SessionCRUD().create(db_conn, session)
         removed.append(session.session_id)
     finished = Session(
         session_id=uuid4(),
@@ -273,12 +281,12 @@ async def test_clean_finished_and_old_sessions(
         status=SessionStatus.FINISHED,
         extracted_data=None,
     )
-    await SessionCRUD().create(db_connection, finished)
+    SessionCRUD().create(db_conn, finished)
     removed.append(finished.session_id)
     await scan_service.clean()
     assert {call.args[0] for call in image_service.delete.await_args_list} == set(
         removed
     )
-    assert await SessionCRUD().get(db_connection, recent.session_id) == recent
-    assert len(await db_connection.fetch_all("SELECT session_id FROM sessions")) == 1
+    assert SessionCRUD().get(db_conn, recent.session_id) == recent
+    assert len(db_conn.execute("SELECT session_id FROM sessions").fetchall()) == 1
     processing_service.process.assert_not_awaited()

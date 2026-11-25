@@ -4,13 +4,10 @@ import pytest
 from pydantic import JsonValue
 from pytest_mock import MockerFixture
 
-from form.database.d1 import D1Binding
 from form.llm.llm import LLM
 from form.model.form import Form
 from form.service.image import ImageService
 from form.service.processing import ProcessingService
-from form.service.scan import ScanService
-from form.settings import Settings
 
 
 @pytest.fixture
@@ -63,10 +60,3 @@ def llm(mocker: MockerFixture, form: Form):
 @pytest.fixture
 def processing_service(mocker: MockerFixture):
     return mocker.create_autospec(ProcessingService, instance=True)
-
-
-@pytest.fixture
-def scan_service(
-    db_binding: D1Binding, image_service, llm, processing_service, settings: Settings
-) -> ScanService:
-    return ScanService(db_binding, image_service, llm, processing_service, settings)
