@@ -15,7 +15,7 @@ from pydantic import BaseModel, JsonValue, SecretStr, ValidationError
 
 from form.exceptions import ScanError
 from form.llm.instruction import Instruction
-from form.llm.model import Form
+from form.model.form import Form
 
 logger = logging.getLogger(__name__)
 

@@ -38,6 +38,7 @@ High level popis celého epicu je popsán v `spec/prds/01-LLM_core.md`.
 
 Dokumentace a coding conventions pro různé domény:
 - `spec/project.md` - adresářová struktura, tooling a použité technologie v tomto projektu
+- `spec/coding-conventions.md` - pravidla pro psaní kódu
 - `spec/database.md` - konvence pro komunikaci s databází
 - `spec/tests.md` - konvence pro psaní testů
 Tyto soubory neměň.

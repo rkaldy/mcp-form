@@ -5,10 +5,11 @@ import os
 import re
 import signal
 import subprocess
-import time
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
 import httpx
 import pytest
@@ -58,45 +59,60 @@ def local_r2_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "WRANGLER_LOG_PATH": str(directory / "wrangler-debug.log"),
         "CI": "true",
     }
-    with (directory / "wrangler.log").open("w+") as log:
+    log_path = directory / "wrangler.log"
+    with log_path.open("w") as log:
         process = subprocess.Popen(
             command,
             cwd=directory,
             env=environment,
-            stdout=log,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            text=True,
             start_new_session=True,
         )
-        try:
-            deadline = time.monotonic() + 45
-            output = ""
-            while time.monotonic() < deadline:
-                log.seek(0)
-                output = log.read()
-                if process.poll() is not None:
-                    pytest.fail(f"Local R2 Worker exited during startup:\n{output}")
-                match = re.search(r"Ready on (http://127\.0\.0\.1:\d+)", output)
+        stdout = process.stdout
+        assert stdout is not None
+        ready: Queue[str | None] = Queue()
+
+        def read_output():
+            # Keep draining stdout after startup so runtime logs cannot fill the pipe.
+            for line in stdout:
+                log.write(line)
+                log.flush()
+                match = re.search(r"Ready on (http://127\.0\.0\.1:\d+)", line)
                 if match:
-                    url = match.group(1)
-                    try:
-                        with httpx.Client(trust_env=False, timeout=1) as client:
-                            response = client.get(f"{url}/health")
-                        if response.status_code == 200:
-                            yield url
-                            return
-                    except httpx.TransportError:
-                        pass
-                # Bounded polling of process readiness, not a delay in test behavior.
-                time.sleep(0.1)
-            pytest.fail(f"Local R2 Worker did not become ready:\n{output}")
+                    ready.put(match.group(1))
+            ready.put(None)
+
+        reader = Thread(target=read_output, daemon=True)
+        reader.start()
+        try:
+            try:
+                url = ready.get(timeout=45)
+            except Empty:
+                pytest.fail(
+                    f"Local R2 Worker did not become ready:\n{log_path.read_text()}"
+                )
+            if url is None:
+                pytest.fail(
+                    f"Local R2 Worker exited during startup:\n{log_path.read_text()}"
+                )
+            with httpx.Client(trust_env=False, timeout=5) as client:
+                response = client.get(f"{url}/health")
+            response.raise_for_status()
+            yield url
         finally:
-            if process.poll() is None:
+            try:
                 os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=10)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait(timeout=10)
+            reader.join(timeout=10)
+            stdout.close()
 
 
 @dataclass

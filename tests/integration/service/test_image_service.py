@@ -9,7 +9,7 @@ from form.service.image import ImageService, R2Bucket
 @pytest.fixture
 def jpeg_bytes() -> bytes:
     """Use the synthetic JPEG fixture without accessing a customer document."""
-    return (Path(__file__).parents[1] / "unit" / "fixtures" / "blank.jpg").read_bytes()
+    return (Path(__file__).parents[1] / "fixtures" / "blank.jpg").read_bytes()
 
 
 @pytest.mark.anyio

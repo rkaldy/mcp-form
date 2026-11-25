@@ -6,14 +6,30 @@ This binding is test-only: real D1 autocommits and cannot roll back a whole test
 import asyncio
 import sqlite3
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from pydantic import SecretStr
 from sqlalchemy import URL
 
-from form.database.d1 import D1Connection, D1Result, SQLValue
+from form.database.d1 import D1Binding, D1Connection, D1Result, SQLValue
+from form.settings import Settings
+
+
+@pytest.fixture
+def settings() -> Settings:
+    return Settings(
+        llm_model="test",
+        llm_api_key=SecretStr("synthetic-key"),
+        llm_reasoning_effort=None,
+        llm_timeout=120,
+        max_upload_size_bytes=20 * 1024 * 1024,
+        confidence_threshold=75,
+        session_ttl=timedelta(hours=24),
+    )
 
 
 class _SQLiteStatement:
@@ -74,10 +90,16 @@ def sqlite_database(
 
 
 @pytest.fixture
-def db_connection(sqlite_database: sqlite3.Connection) -> Iterator[D1Connection]:
+def db_binding(sqlite_database: sqlite3.Connection) -> Iterator[D1Binding]:
     """Give each test a transaction and roll it back even when the test fails."""
     sqlite_database.execute("BEGIN")
     try:
-        yield D1Connection(_SQLiteBinding(sqlite_database))
+        yield _SQLiteBinding(sqlite_database)
     finally:
         sqlite_database.rollback()
+
+
+@pytest.fixture
+def db_connection(db_binding: D1Binding) -> D1Connection:
+    """Expose the transactional test binding through the production D1 adapter."""
+    return D1Connection(db_binding)

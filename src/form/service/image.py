@@ -22,7 +22,7 @@ class R2Bucket(Protocol):
 
 class ImageService:
     def __init__(self, bucket: R2Bucket):
-        self._bucket = bucket
+        self.bucket = bucket
 
     def normalize(self, image: bytes) -> bytes:
         """Apply EXIF orientation and return a JPEG without orientation metadata."""
@@ -48,18 +48,18 @@ class ImageService:
 
     async def save(self, image_id: UUID, image: bytes):
         """Store the supplied bytes unchanged under the UUID's canonical string."""
-        await self._bucket.put(str(image_id), image)
+        await self.bucket.put(str(image_id), image)
 
     async def load(self, image_id: UUID) -> bytes:
         """Load stored bytes; raise FileNotFoundError when the UUID is absent."""
-        image = await self._bucket.get(str(image_id))
+        image = await self.bucket.get(str(image_id))
         if image is None:
             raise FileNotFoundError("Image not found")
         return bytes(await image.arrayBuffer())
 
     async def delete(self, image_id: UUID):
         """Delete the stored image under the UUID's canonical string."""
-        await self._bucket.delete(str(image_id))
+        await self.bucket.delete(str(image_id))
 
     @staticmethod
     def _jpeg(image: Image.Image) -> bytes:

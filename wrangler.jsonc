@@ -23,6 +23,9 @@
   ],
   "vars": {
     "LLM_MODEL": "openai/gpt-6",
-    "LLM_REASONING_EFFORT": "medium"
+    "LLM_REASONING_EFFORT": "medium",
+    "CONFIDENCE_THRESHOLD": 75,
+    "MAX_UPLOAD_SIZE_BYTES": 20971520,
+    "SESSION_TTL": 86400
   }
 }

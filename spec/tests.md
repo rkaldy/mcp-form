@@ -33,17 +33,20 @@ Tato kapitola platí pro všechny testy kromě smoke testů.
 - Testuj **pozorovatelné chování a kontrakty**, nikoli soukromé implementační detaily. Mockuj externí hranice, ne logiku, kterou právě testuješ.
 - Každou podstatnou změnu chování doprovázej testy. Při opravě chyby přidej pokud možno regresní test, který by před opravou selhával.
 - Pokrývej úspěšné scénáře, relevantní okrajové případy, neplatné vstupy a důležité chybové stavy či opakované pokusy. U stavového nebo souběžného chování zahrň konflikty a zotavení po selhání.
+- Při nové funkčnosti nebo změně kódu upravuj pouze testy, které se týkají přímo tvého kódu. Ostatní testy neměň. Pokud neprojdou, upozorni na to.
 - Testy udržuj deterministické, izolované, opakovatelné a nezávislé na pořadí spuštění. Po každém testu ukliď všechna jím vytvořená data.
 - Namísto skutečného čekání nebo závislosti na reálném čase používej řízené hodiny, předávané zdroje náhodnosti a synchronizační mechanismy.
 - Upřednostňuj realistická testovací data a aserce, které skutečně odhalí regresi chování. Nepiš aserce jen kvůli zvýšení procenta pokrytí.
+- Nesnaž se za každou cenu o 100% test code coverage. Nepiš testy na triviální kód. Máš-li nějakou jednoduchou metodu třídu nebo strukturu, buď ji netestuj vůbec (testing coverage není relevantní metrika), anebo ji otestuj v rámci testovnání metody, která ji volá.
 
 ## Testovací techniky
 
 - Na testování používej funkce `test_XXX`, ne metody. Do docstringu dej popis, co daný test testuje.
 - Na mockování použij `mocker.patch` a `mocker.patch.object`.
+- V testech používej stejnou adresářovou strukturu jako v kódu. Dodatečné datové soubory ukládej v podadresáři `fixtures`. 
+- Nepiš type hinty, pokud typ parametru nebo návratové hodnoty je `Mock`.
 - Místo copy-paste vytváření struktur pro běh testů používej pytest fixtury. Nepoužívej fixtury místo triviálních konstruktorů s jedním parametrem typu `obj=Class("param")`. Zvaž, zdali u objektů, které přijímají různé parametry v konstruktoru, není lepší factory funkce nežli fixtura.
+- Pro testování rutin využívající aktuální čas použij knihovnu `freezegun`.
 - Netestuj triviální pydantic validace v samotných modelech. Nevalidní parametry testuj jen u funkcí, které samy validují.
-- Nesnaž se za každou cenu o 100% test code coverage. Nepiš testy na triviální kód. Máš-li nějakou jednoduchou metodu třídu nebo strukturu, buď ji netestuj vůbec (testing coverage není relevantní metrika), anebo ji otestuj v rámci testovnání metody, která ji volá.
-
-
+- V CRUDech testuj jen netriviální metody (tedy ne základní create, read, update, delete)
 

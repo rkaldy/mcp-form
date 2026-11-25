@@ -1,5 +1,4 @@
 import sqlite3
-from unittest.mock import Mock
 
 import pytest
 from fastapi import Request
@@ -10,7 +9,7 @@ from form.database.dependencies import get_database_binding
 
 
 @pytest.fixture
-def d1_binding(mocker: MockerFixture) -> Mock:
+def d1_binding(mocker: MockerFixture):
     """Represent the documented D1 binding and asynchronous statement API."""
     binding = mocker.create_autospec(D1Binding, instance=True)
     statement = binding.prepare.return_value
@@ -25,7 +24,7 @@ def result_data(rows: list[Row], changes: int = 0) -> D1Result:
 
 
 @pytest.mark.anyio
-async def test_d1_binds_values_and_converts_javascript_results(d1_binding: Mock):
+async def test_d1_binds_values_and_converts_javascript_results(d1_binding):
     """Bind scalars through D1 and expose plain dictionaries to CRUD callers."""
     statement = d1_binding.prepare.return_value
     statement.run.return_value = result_data([{"id": 1, "value": None}], 1)
@@ -38,7 +37,7 @@ async def test_d1_binds_values_and_converts_javascript_results(d1_binding: Mock)
 
 
 @pytest.mark.anyio
-async def test_d1_fetches_rows_and_returns_none_when_empty(d1_binding: Mock):
+async def test_d1_fetches_rows_and_returns_none_when_empty(d1_binding):
     """Expose first/all rows and consistent empty results without binding no values."""
     statement = d1_binding.prepare.return_value
     statement.run.side_effect = [
@@ -57,7 +56,7 @@ async def test_d1_fetches_rows_and_returns_none_when_empty(d1_binding: Mock):
 
 
 @pytest.mark.anyio
-async def test_d1_propagates_failures_without_retry(d1_binding: Mock):
+async def test_d1_propagates_failures_without_retry(d1_binding):
     """Preserve a provider failure and avoid issuing a write more than once."""
     error = RuntimeError("synthetic provider failure")
     statement = d1_binding.prepare.return_value
@@ -70,7 +69,7 @@ async def test_d1_propagates_failures_without_retry(d1_binding: Mock):
 
 
 @pytest.mark.anyio
-async def test_d1_preserves_unsuccessful_result_error(d1_binding: Mock):
+async def test_d1_preserves_unsuccessful_result_error(d1_binding):
     """Never report a returned unsuccessful D1 result as a successful write."""
     d1_binding.prepare.return_value.run.return_value = {
         "success": False,
