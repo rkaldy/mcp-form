@@ -17,4 +17,5 @@ Return dates as YYYY-MM-DD only when the full date is unambiguous. If the year i
 Extract table rows in their visual order. Include partially filled rows. Skip completely empty rows. 
 
 Bounding boxes enclose the value cell, excluding its label, in pixel coordinates of the supplied image. The origin is the top-left corner. Use null when the field cannot be located.
+
 """

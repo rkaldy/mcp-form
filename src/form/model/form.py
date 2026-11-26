@@ -13,7 +13,7 @@ class TableFields(LLMBase):
         description="Column value with label 'Jméno dítěte nebo dětí'"
     )
     city: FormField[str] = Field(
-        description="Column value with label 'Bydliště jen obec'"
+        description="Column value with label 'Bydliště jen obec'. Value 'VB' interpret as 'Veverská Bítýška'"
     )
     contact: FormField[str] = Field(
         description="Column value with label 'Kontakt email nebo tel.'"

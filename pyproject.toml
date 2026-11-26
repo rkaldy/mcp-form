@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.1",
+    "czech-sort>=1.1.0",
     "fastapi>=0.165.0",
     "gspread>=6.2.1",
     "imagesize>=2.0.1",

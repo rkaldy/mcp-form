@@ -110,7 +110,7 @@
         }
       },
       "city": {
-        "value": "VB",
+        "value": "Veverská Bítýška",
         "confidence": 100,
         "bounding_box": {
           "top_left": {
@@ -171,7 +171,7 @@
         }
       },
       "city": {
-        "value": "VB",
+        "value": "Veverská Bítýška",
         "confidence": 100,
         "bounding_box": {
           "top_left": {
@@ -232,7 +232,7 @@
         }
       },
       "city": {
-        "value": "VB",
+        "value": "Veverská Bítýška",
         "confidence": 100,
         "bounding_box": {
           "top_left": {
@@ -415,7 +415,7 @@
         }
       },
       "city": {
-        "value": "VB",
+        "value": "Veverská Bítýška",
         "confidence": 100,
         "bounding_box": {
           "top_left": {
