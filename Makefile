@@ -8,6 +8,9 @@ run:
 build:
 	docker build -t form-scanner .
 
+run-docker:
+	docker run --rm --name form-scanner --env-file .env -p 8000:8000 -v "$(pwd)/data:/app/data" form-scanner
+
 lint:
 	uv run ruff format src tests migrations
 	uv run ruff check --fix src tests migrations
