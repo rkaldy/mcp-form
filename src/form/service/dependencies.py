@@ -16,6 +16,12 @@ def get_image_service(
     return ImageService(settings)
 
 
+def get_processing_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ProcessingService:
+    return ProcessingService(settings)
+
+
 def get_scan_service(
     settings: Annotated[Settings, Depends(get_settings)],
     database: Annotated[Database, Depends(get_database)],
@@ -30,7 +36,3 @@ def get_scan_service(
         processing,
         settings,
     )
-
-
-def get_processing_service() -> ProcessingService:
-    return ProcessingService()

@@ -22,6 +22,7 @@ from form.settings import Settings, get_settings
 
 storage = TemporaryDirectory(prefix="form-scanner-e2e-")
 settings = Settings(
+    target_spreadsheet="https://docs.google.com/spreadsheets/d/synthetic-test",
     database_path=Path(storage.name) / "form.sqlite3",
     images_path=Path(storage.name) / "images",
     llm_model="test",
@@ -91,4 +92,6 @@ config.set_main_option(
 command.upgrade(config, "head")
 app.dependency_overrides[get_settings] = lambda: settings
 app.dependency_overrides[get_llm] = lambda: FixtureLLM(settings)
-app.dependency_overrides[get_processing_service] = FixtureProcessingService
+app.dependency_overrides[get_processing_service] = lambda: FixtureProcessingService(
+    settings
+)

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     )
 
     log_level: str = "INFO"
+    target_spreadsheet: str
 
     database_path: Path = Path("data/form.sqlite3")
     images_path: Path = Path("data/images")

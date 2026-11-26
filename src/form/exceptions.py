@@ -4,3 +4,7 @@ class ScanError(Exception):
 
 class UserInputError(Exception):
     pass
+
+
+class ProcessingError(Exception):
+    pass

@@ -5,6 +5,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.1",
     "fastapi>=0.165.0",
+    "gspread>=6.2.1",
     "imagesize>=2.0.1",
     "litellm>=1.110.2",
     "pillow>=12.2,<12.3",

@@ -25,6 +25,7 @@ def pytest_sessionstart(session: pytest.Session):
 @pytest.fixture(scope="session")
 def settings(tmp_path_factory: TempPathFactory) -> Settings:
     return Settings(
+        target_spreadsheet="https://docs.google.com/spreadsheets/d/synthetic-test",
         database_path=tmp_path_factory.mktemp("database") / "form.sqlite3",
         images_path=tmp_path_factory.mktemp("images"),
         llm_model="test",

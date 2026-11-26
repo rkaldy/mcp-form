@@ -1,0 +1,447 @@
+{
+  "static_fields": {
+    "activity_name": {
+      "value": "Lískáček svépomocná skupina pro rodiče s dětmi",
+      "confidence": 100,
+      "bounding_box": {
+        "top_left": {
+          "x": 260,
+          "y": 169
+        },
+        "bottom_right": {
+          "x": 745,
+          "y": 205
+        }
+      }
+    },
+    "activity_theme": {
+      "value": "Psychomotorický vývoj od 0–3 let, lezení, plazení, sed… Jak děti správně podpořit ve vývoji, pomůcky a první boty, vnímání vlastního dítěte",
+      "confidence": 100,
+      "bounding_box": {
+        "top_left": {
+          "x": 200,
+          "y": 813
+        },
+        "bottom_right": {
+          "x": 1385,
+          "y": 902
+        }
+      }
+    },
+    "date": {
+      "value": "2026-11-08",
+      "confidence": 70,
+      "bounding_box": {
+        "top_left": {
+          "x": 498,
+          "y": 208
+        },
+        "bottom_right": {
+          "x": 647,
+          "y": 241
+        }
+      }
+    },
+    "lecturer1": {
+      "value": "Mgr. Kateřina Káldy",
+      "confidence": 100,
+      "bounding_box": {
+        "top_left": {
+          "x": 290,
+          "y": 245
+        },
+        "bottom_right": {
+          "x": 510,
+          "y": 275
+        }
+      }
+    },
+    "lecturer2": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "member_count": {
+      "value": 6,
+      "confidence": 100,
+      "bounding_box": {
+        "top_left": {
+          "x": 867,
+          "y": 901
+        },
+        "bottom_right": {
+          "x": 902,
+          "y": 947
+        }
+      }
+    }
+  },
+  "table_fields": [
+    {
+      "name": {
+        "value": {
+          "first_name": "Katarína",
+          "surname": "Garlíková"
+        },
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 369
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 406
+          }
+        }
+      },
+      "child_name": {
+        "value": "Linda",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 369
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 406
+          }
+        }
+      },
+      "city": {
+        "value": "VB",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 369
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 406
+          }
+        }
+      },
+      "contact": {
+        "value": "725 148 518",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 369
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 406
+          }
+        }
+      }
+    },
+    {
+      "name": {
+        "value": {
+          "first_name": "Simona",
+          "surname": "Nováková"
+        },
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 406
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 441
+          }
+        }
+      },
+      "child_name": {
+        "value": "Sebastian",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 406
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 441
+          }
+        }
+      },
+      "city": {
+        "value": "VB",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 406
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 441
+          }
+        }
+      },
+      "contact": {
+        "value": "735 520 107",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 406
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 441
+          }
+        }
+      }
+    },
+    {
+      "name": {
+        "value": {
+          "first_name": "Adéla",
+          "surname": "Klaudová"
+        },
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 441
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 477
+          }
+        }
+      },
+      "child_name": {
+        "value": "Ema",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 441
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 477
+          }
+        }
+      },
+      "city": {
+        "value": "VB",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 441
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 477
+          }
+        }
+      },
+      "contact": {
+        "value": "737 132 237",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 441
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 477
+          }
+        }
+      }
+    },
+    {
+      "name": {
+        "value": {
+          "first_name": "Kateřina",
+          "surname": "Přetáková"
+        },
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 477
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 511
+          }
+        }
+      },
+      "child_name": {
+        "value": "Valerie",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 477
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 511
+          }
+        }
+      },
+      "city": {
+        "value": "LO",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 477
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 511
+          }
+        }
+      },
+      "contact": {
+        "value": "605 380 977",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 477
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 511
+          }
+        }
+      }
+    },
+    {
+      "name": {
+        "value": {
+          "first_name": "Ivana",
+          "surname": "Šmardová"
+        },
+        "confidence": 70,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 511
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 549
+          }
+        }
+      },
+      "child_name": {
+        "value": "Berenika",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 511
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 549
+          }
+        }
+      },
+      "city": {
+        "value": "Dolní Loučky",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 511
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 549
+          }
+        }
+      },
+      "contact": {
+        "value": "775 021 378",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 511
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 549
+          }
+        }
+      }
+    },
+    {
+      "name": {
+        "value": {
+          "first_name": "Žaneta",
+          "surname": "Přichystalová"
+        },
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 98,
+            "y": 549
+          },
+          "bottom_right": {
+            "x": 476,
+            "y": 585
+          }
+        }
+      },
+      "child_name": {
+        "value": "Stella",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 496,
+            "y": 549
+          },
+          "bottom_right": {
+            "x": 749,
+            "y": 585
+          }
+        }
+      },
+      "city": {
+        "value": "VB",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 768,
+            "y": 549
+          },
+          "bottom_right": {
+            "x": 950,
+            "y": 585
+          }
+        }
+      },
+      "contact": {
+        "value": "775 905 282",
+        "confidence": 100,
+        "bounding_box": {
+          "top_left": {
+            "x": 962,
+            "y": 549
+          },
+          "bottom_right": {
+            "x": 1175,
+            "y": 585
+          }
+        }
+      }
+    }
+  ]
+}
