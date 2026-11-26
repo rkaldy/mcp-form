@@ -46,7 +46,6 @@ class FixtureLLM(LLM):
             for name, value in [
                 ("activity_name", "Testovací aktivita"),
                 ("date", date(2026, 11, 8)),
-                ("member_count", 2),
             ]:
                 field = getattr(result.static_fields, name)
                 field.value = value
@@ -75,7 +74,6 @@ class FixtureProcessingService(ProcessingService):
         processed = Form.model_validate_json(json.dumps(data))
         if processed.table_fields:
             assert processed.static_fields.activity_name.value == "Opravená aktivita"
-            assert processed.static_fields.member_count.value == 3
             assert processed.static_fields.date.value == date(2026, 11, 9)
             assert processed.table_fields[0].name.value == Name(
                 first_name="Eva", surname="Ukázková"

@@ -21,7 +21,6 @@ def blank_form_response() -> litellm.ModelResponse:
                     "date",
                     "lecturer1",
                     "lecturer2",
-                    "member_count",
                 )
             },
             "table_fields": [],

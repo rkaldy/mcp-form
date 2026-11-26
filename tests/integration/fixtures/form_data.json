@@ -60,20 +60,6 @@
       "value": null,
       "confidence": 100,
       "bounding_box": null
-    },
-    "member_count": {
-      "value": 6,
-      "confidence": 100,
-      "bounding_box": {
-        "top_left": {
-          "x": 867,
-          "y": 901
-        },
-        "bottom_right": {
-          "x": 902,
-          "y": 947
-        }
-      }
     }
   },
   "table_fields": [

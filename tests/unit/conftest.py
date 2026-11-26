@@ -12,7 +12,7 @@ from form.service.processing import ProcessingService
 
 @pytest.fixture
 def form() -> Form:
-    """Provide synthetic fields including dates, integer and structured name values."""
+    """Provide synthetic fields including an uncertain date and structured name."""
 
     def field(value: JsonValue, confidence: int = 100) -> dict[str, JsonValue]:
         return {"value": value, "confidence": confidence, "bounding_box": None}
@@ -23,10 +23,9 @@ def form() -> Form:
                 "static_fields": {
                     "activity_name": field("Synthetic activity"),
                     "activity_theme": field(None),
-                    "date": field("2026-01-02"),
+                    "date": field("2026-01-02", 74),
                     "lecturer1": field(None),
                     "lecturer2": field(None),
-                    "member_count": field(2, 74),
                 },
                 "table_fields": [
                     {

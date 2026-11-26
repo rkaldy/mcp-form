@@ -1,7 +1,7 @@
 {
   "static_fields": {
     "activity_name": {
-      "value": null,
+      "value": "Synthetic activity",
       "confidence": 100,
       "bounding_box": null
     },
@@ -11,7 +11,7 @@
       "bounding_box": null
     },
     "date": {
-      "value": null,
+      "value": "2026-01-02",
       "confidence": 100,
       "bounding_box": null
     },
@@ -21,11 +21,6 @@
       "bounding_box": null
     },
     "lecturer2": {
-      "value": null,
-      "confidence": 100,
-      "bounding_box": null
-    },
-    "member_count": {
       "value": null,
       "confidence": 100,
       "bounding_box": null

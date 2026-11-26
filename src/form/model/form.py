@@ -32,9 +32,6 @@ class StaticFields(LLMBase):
         description="Field value with label 'Zaměstnanec MC'"
     )
     lecturer2: FormField[str] = Field(description="Field value with label 'Lektor'")
-    member_count: FormField[int] = Field(
-        description="Field value with label 'Počet účastníků'"
-    )
 
 
 class Form(LLMBase):

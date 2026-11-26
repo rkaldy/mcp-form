@@ -245,7 +245,6 @@ async function openReview(page) {
 
 async function fillCorrections(page) {
   await page.getByRole('textbox', { name: 'Název aktivity', exact: true }).fill('Opravená aktivita');
-  await page.getByRole('textbox', { name: 'Počet účastníků', exact: true }).fill('3');
   await page.getByRole('textbox', { name: 'Datum realizace (od - do)', exact: true }).fill('9.11.2026');
   await page.getByRole('textbox', { name: 'Jméno a příjmení účastníka: Jméno', exact: true }).fill('Eva');
   await page.getByRole('textbox', { name: 'Jméno a příjmení účastníka: Příjmení', exact: true }).fill('Ukázková');
@@ -256,21 +255,17 @@ test('review loads real crops, validates corrections and confirms completed proc
   await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Testovací aktivita');
   const date = page.getByRole('textbox', { name: 'Datum realizace (od - do)', exact: true });
   await expect(date).toHaveValue('8.11.2026');
-  await expect(page.getByRole('img', { name: /^Výřez:/ })).toHaveCount(4);
+  await expect(page.getByRole('img', { name: /^Výřez:/ })).toHaveCount(3);
   for (const crop of await page.getByRole('img', { name: /^Výřez:/ }).all()) {
     await expect.poll(() => crop.evaluate((image) => image.naturalWidth)).toBe(32);
     expect(await crop.evaluate((image) => image.naturalHeight)).toBe(24);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await fillCorrections(page);
-  const count = page.getByRole('textbox', { name: 'Počet účastníků', exact: true });
-  await count.fill('3.5');
   await date.fill('31.2.2026');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByText('Zadejte celé číslo.', { exact: true })).toBeVisible();
   await expect(page.getByText('Zadejte platné datum ve formátu D.M.YYYY.', { exact: true })).toBeVisible();
   await expect(date).toBeFocused();
-  await count.fill('3');
   // The native picker updates the editable Czech date representation too.
   await page.getByLabel('Vybrat datum: Datum realizace (od - do)', { exact: true }).fill('2026-11-09');
   await expect(date).toHaveValue('9.11.2026');
@@ -292,35 +287,40 @@ test('server validation failure preserves corrections and allows another submiss
   await fillCorrections(page);
   let attempts = 0;
   await page.route('**/api/scan/review', async (route) => {
-    if (++attempts === 1) await route.fulfill({ status: 422, json: { error: 'Chybně zadaná hodnota', detail: 'Počet účastníků musí být celé číslo.' } });
+    if (++attempts === 1) await route.fulfill({ status: 422, json: { error: 'Chybně zadaná hodnota', detail: 'Zadejte platné datum.' } });
     else await route.continue();
   });
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Chybně zadaná hodnota');
-  await expect(page.getByRole('alert')).toContainText('Počet účastníků musí být celé číslo.');
+  await expect(page.getByRole('alert')).toContainText('Zadejte platné datum.');
   await expect(page.getByRole('heading', { name: 'Zkontroluj tato pole' })).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Počet účastníků', exact: true })).toHaveValue('3');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
 });
 
-test('review handles decimal commas, checkboxes, nulls and missing crops', async ({ page, scanApi }) => {
+test('review handles integers, decimal commas, checkboxes, nulls and missing crops', async ({ page, scanApi }) => {
   scanApi.respond = async (_request, response) => response.writeHead(200).end(JSON.stringify({
     session_id: '00000000-0000-0000-0000-000000000001',
     reviews: [
       { type: 'Decimal', path: 'amount', label: 'Částka', value: '12.5', bounding_box: null },
       { type: 'bool', path: 'confirmed', label: 'Potvrzeno', value: false, bounding_box: null },
       { type: 'str', path: 'note', label: 'Poznámka', value: null, bounding_box: null },
+      { type: 'int', path: 'count', label: 'Počet', value: 2, bounding_box: null },
     ],
   }));
   await openReview(page);
   await expect(page.getByRole('textbox', { name: 'Poznámka', exact: true })).toBeEmpty();
-  await expect(page.getByText('Výřez není k dispozici.', { exact: true })).toHaveCount(3);
+  await expect(page.getByText('Výřez není k dispozici.', { exact: true })).toHaveCount(4);
   const amount = page.getByRole('textbox', { name: 'Částka', exact: true });
   await expect(amount).toHaveValue('12.5');
+  const count = page.getByRole('textbox', { name: 'Počet', exact: true });
+  await expect(count).toHaveValue('2');
+  await count.fill('3.5');
   await amount.fill('12,3,4');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Zadejte desetinné číslo');
+  await expect(page.getByText('Zadejte celé číslo.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Zadejte desetinné číslo s tečkou nebo čárkou.', { exact: true })).toBeVisible();
+  await count.fill('3');
   await amount.fill('12,75');
   await page.getByRole('checkbox', { name: 'Potvrzeno', exact: true }).check();
   let submitted;
@@ -331,7 +331,7 @@ test('review handles decimal commas, checkboxes, nulls and missing crops', async
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
   expect(submitted.reviews).toEqual([
-    { path: 'amount', value: '12.75' }, { path: 'confirmed', value: true }, { path: 'note', value: null },
+    { path: 'amount', value: '12.75' }, { path: 'confirmed', value: true }, { path: 'note', value: null }, { path: 'count', value: 3 },
   ]);
 });
 
@@ -347,7 +347,7 @@ test('crop failures can be retried without losing edited values', async ({ page 
   await fillCorrections(page);
   await expect(page.getByText('Výřez se nepodařilo načíst.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Zkusit znovu', exact: true }).click();
-  await expect(page.getByRole('img', { name: /^Výřez:/ })).toHaveCount(4);
+  await expect(page.getByRole('img', { name: /^Výřez:/ })).toHaveCount(3);
   await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Opravená aktivita');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
@@ -379,7 +379,7 @@ test('real review validation errors show server text and retain all corrections'
     if (first) {
       first = false;
       const body = route.request().postDataJSON();
-      body.reviews.find((field) => field.path === 'static_fields.member_count').value = 'not an integer';
+      body.reviews.find((field) => field.path === 'static_fields.date').value = 'not a date';
       const response = await route.fetch({ postData: JSON.stringify(body) });
       validationError = await response.json();
       await route.fulfill({ response });
@@ -390,7 +390,6 @@ test('real review validation errors show server text and retain all corrections'
   await expect(alert.locator('.error-title')).toHaveText('Chybně zadaná hodnota');
   await expect(alert.locator('.error-details')).toHaveText(validationError.details ?? validationError.detail);
   await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Opravená aktivita');
-  await expect(page.getByRole('textbox', { name: 'Počet účastníků', exact: true })).toHaveValue('3');
   await expect(page.getByRole('textbox', { name: 'Datum realizace (od - do)', exact: true })).toHaveValue('9.11.2026');
   await expect(page.getByRole('textbox', { name: 'Jméno a příjmení účastníka: Příjmení', exact: true })).toHaveValue('Ukázková');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();

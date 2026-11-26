@@ -147,7 +147,6 @@ class ProcessingService:
         if (
             not form.static_fields.activity_name.value
             or form.static_fields.date.value is None
-            or form.static_fields.member_count.value is None
         ):
             raise UserInputError("Název akce, datum a počet účastníků jsou povinné.")
 
@@ -204,7 +203,7 @@ class ProcessingService:
             {
                 "Datum": form.static_fields.date.value,
                 "Podtitul, téma": form.static_fields.activity_theme.value,
-                "Počet účastníků": form.static_fields.member_count.value,
+                "Počet účastníků": len(form.table_fields),
                 "Počet dětí": sum(
                     bool((row.child_name.value or "").strip())
                     for row in form.table_fields

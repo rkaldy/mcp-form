@@ -53,32 +53,33 @@ class ScanService:
             field = getattr(model, name)
             path = f"{prefix}.{name}" if prefix else name
             if isinstance(field, FormField):
-                if field.confidence >= self.confidence_threshold:
-                    continue
-                field_type = FieldType.STRING
-                for value_type in get_args(
-                    type(field).model_fields["value"].annotation
+                if field.confidence < self.confidence_threshold or (
+                    name in ("activity_name", "date") and field.value is None
                 ):
-                    if value_type is int:
-                        field_type = FieldType.INTEGER
-                    elif value_type is bool:
-                        field_type = FieldType.BOOLEAN
-                    elif value_type is date:
-                        field_type = FieldType.DATE
-                    elif value_type is Decimal:
-                        field_type = FieldType.DECIMAL
-                    elif value_type is Name:
-                        field_type = FieldType.NAME
-                label = re.search(r"'([^']+)'", definition.description or "")
-                result.append(
-                    ToReview(
-                        type=field_type,
-                        path=path,
-                        label=label.group(1) if label else name,
-                        value=field.model_dump(mode="json")["value"],
-                        bounding_box=field.bounding_box,
+                    field_type = FieldType.STRING
+                    for value_type in get_args(
+                        type(field).model_fields["value"].annotation
+                    ):
+                        if value_type is int:
+                            field_type = FieldType.INTEGER
+                        elif value_type is bool:
+                            field_type = FieldType.BOOLEAN
+                        elif value_type is date:
+                            field_type = FieldType.DATE
+                        elif value_type is Decimal:
+                            field_type = FieldType.DECIMAL
+                        elif value_type is Name:
+                            field_type = FieldType.NAME
+                    label = re.search(r"'([^']+)'", definition.description or "")
+                    result.append(
+                        ToReview(
+                            type=field_type,
+                            path=path,
+                            label=label.group(1) if label else name,
+                            value=field.model_dump(mode="json")["value"],
+                            bounding_box=field.bounding_box,
+                        )
                     )
-                )
             elif isinstance(field, BaseModel):
                 result.extend(self.review_fields(field, path))
             elif isinstance(field, list):

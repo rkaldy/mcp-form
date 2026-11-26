@@ -37,11 +37,11 @@ async def test_scan(
     image_service.save.assert_awaited_once_with(response.session_id, b"normalized-jpeg")
     llm.scan.assert_awaited_once_with(b"normalized-jpeg")
     assert [item.path for item in response.reviews] == [
-        "static_fields.member_count",
+        "static_fields.date",
         "table_fields.0.name",
     ]
-    assert response.reviews[0].label == "Počet účastníků"
-    assert response.reviews[0].type == FieldType.INTEGER
+    assert response.reviews[0].label == "Datum realizace (od - do)"
+    assert response.reviews[0].type == FieldType.DATE
     assert response.reviews[1].type == FieldType.NAME
     assert response.reviews[1].bounding_box is None
     session = SessionCRUD().get(db_conn, response.session_id)
@@ -76,7 +76,7 @@ async def test_review(
         ReviewRequest(
             session_id=review_session.session_id,
             reviews=[
-                Review(path="static_fields.member_count", value=3),
+                Review(path="static_fields.date", value="2026-01-03"),
                 Review(
                     path="table_fields.0.name",
                     value={"first_name": "Corrected", "surname": "Person"},
@@ -86,8 +86,8 @@ async def test_review(
     )
     processing_service.process.assert_awaited_once()
     processed = processing_service.process.call_args.args[0]
-    assert processed["static_fields"]["member_count"]["value"] == 3
-    assert processed["static_fields"]["member_count"]["confidence"] == 74
+    assert processed["static_fields"]["date"]["value"] == "2026-01-03"
+    assert processed["static_fields"]["date"]["confidence"] == 74
     assert processed["table_fields"][0]["name"]["value"]["first_name"] == "Corrected"
     image_service.delete.assert_awaited_once_with(review_session.session_id)
     assert SessionCRUD().get(db_conn, review_session.session_id) is None
@@ -147,7 +147,7 @@ async def test_invalid_review_preserves_session(
         Review(path=item.path, value=item.value)
         for item in scan_service.review_fields(form)
     ]
-    reviews[0].value = "not a number"
+    reviews[0].value = "not a date"
     with pytest.raises(UserInputError, match="Chybně zadaná hodnota") as caught:
         await scan_service.review(
             ReviewRequest(session_id=review_session.session_id, reviews=reviews)
@@ -179,7 +179,7 @@ async def test_invalid_review_paths_remove_session(
     else:
         path = {
             "unknown": "unknown",
-            "metadata": "static_fields.member_count.confidence",
+            "metadata": "static_fields.date.confidence",
             "negative": "table_fields.-1.name",
             "huge": f"table_fields.{'9' * 5000}.name",
         }[mode]
@@ -199,7 +199,7 @@ def test_review_fields_excludes_fields_at_threshold(
     form: Form,
 ):
     """Fields at the confidence threshold require no review, including table fields."""
-    form.static_fields.member_count.confidence = scan_service.confidence_threshold
+    form.static_fields.date.confidence = scan_service.confidence_threshold
     form.table_fields[0].name.confidence = scan_service.confidence_threshold
 
     assert scan_service.review_fields(form) == []
@@ -208,7 +208,7 @@ def test_review_fields_excludes_fields_at_threshold(
 @pytest.mark.anyio
 async def test_table_paths_include_row_indexes(scan_service: ScanService, form: Form):
     """Identify an uncertain name in the fifth table row as table_fields.4.name."""
-    form.static_fields.member_count.confidence = 100
+    form.static_fields.date.confidence = 100
     row = form.table_fields[0].model_copy(deep=True)
     form.table_fields = [row.model_copy(deep=True) for _ in range(5)]
     for item in form.table_fields[:4]:
