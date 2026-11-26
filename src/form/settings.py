@@ -13,6 +13,8 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
+    log_level: str = "INFO"
+
     database_path: Path = Path("data/form.sqlite3")
     images_path: Path = Path("data/images")
 
