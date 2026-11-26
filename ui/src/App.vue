@@ -1,5 +1,8 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import ReviewPage from './ReviewPage.vue';
+
+const scan = ref(null);
 
 const status = ref('idle');
 const error = ref('');
@@ -184,16 +187,25 @@ async function uploadPhoto(file) {
         : 'Formulář se nepodařilo zpracovat. Zkuste jej prosím vyfotit znovu.');
       return;
     }
-    await response.json();
-    status.value = 'success';
-    await nextTick();
-    resultHeading.value.focus();
+    scan.value = await response.json();
+    if (scan.value.reviews.length) {
+      status.value = 'review';
+    } else {
+      await showSuccess();
+    }
   } catch {
     await showError('Fotku se nepodařilo odeslat nebo přečíst. Zkontrolujte připojení a zkuste to prosím znovu.');
   }
 }
 
+async function showSuccess() {
+  status.value = 'success';
+  await nextTick();
+  resultHeading.value.focus();
+}
+
 async function startAgain() {
+  scan.value = null;
   error.value = '';
   status.value = 'idle';
   await nextTick();
@@ -223,12 +235,13 @@ async function startAgain() {
       </button>
     </header>
 
-    <main>
-      <section v-if="status === 'success'" class="success-page" aria-labelledby="result-heading">
+    <main :class="{ 'review-main': status === 'review' }">
+      <ReviewPage v-if="status === 'review'" :scan="scan" @processed="showSuccess" @restart="startAgain" />
+      <section v-else-if="status === 'success'" class="success-page" aria-labelledby="result-heading">
         <span class="success-symbol" aria-hidden="true">
           <svg viewBox="0 0 32 32" fill="none"><path d="m8 16 5 5L24 10" /></svg>
         </span>
-        <h1 id="result-heading" ref="resultHeading" tabindex="-1">Ok</h1>
+        <h1 id="result-heading" ref="resultHeading" tabindex="-1">Formulář byl úspěšně zpracován</h1>
         <button class="secondary-button" type="button" @click="startAgain">Naskenovat další formulář</button>
       </section>
 
