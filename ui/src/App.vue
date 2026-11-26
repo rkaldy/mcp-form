@@ -1,11 +1,13 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReviewPage from './ReviewPage.vue';
+import ErrorMessage from './ErrorMessage.vue';
+import { readApiError } from './api.js';
 
 const scan = ref(null);
 
 const status = ref('idle');
-const error = ref('');
+const error = ref(null);
 const fileInput = ref(null);
 const captureButton = ref(null);
 const resultHeading = ref(null);
@@ -153,7 +155,8 @@ async function asJpeg(file) {
 }
 
 async function showError(message) {
-  error.value = message;
+  error.value = typeof message === 'string' ? { error: message, details: '' } : message;
+  scan.value = null;
   status.value = 'idle';
   await nextTick();
   captureButton.value.focus({ preventScroll: true });
@@ -168,7 +171,7 @@ async function scanPhoto(event) {
 async function uploadPhoto(file) {
   if (status.value === 'uploading') return;
   status.value = 'uploading';
-  error.value = '';
+  error.value = null;
   try {
     const image = await asJpeg(file);
     const response = await fetch('/api/scan', {
@@ -177,14 +180,8 @@ async function uploadPhoto(file) {
       body: image,
     });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      const tooLarge = response.status === 413 || (
-        response.status === 422 && typeof payload?.detail === 'string' &&
-        payload.detail.startsWith('Image must not exceed')
-      );
-      await showError(tooLarge
-        ? 'Fotka je příliš velká. Zkuste ji prosím vyfotit v nižším rozlišení.'
-        : 'Formulář se nepodařilo zpracovat. Zkuste jej prosím vyfotit znovu.');
+      await showError(await readApiError(response,
+        'Formulář se nepodařilo zpracovat. Zkuste jej prosím vyfotit znovu.'));
       return;
     }
     scan.value = await response.json();
@@ -206,7 +203,7 @@ async function showSuccess() {
 
 async function startAgain() {
   scan.value = null;
-  error.value = '';
+  error.value = null;
   status.value = 'idle';
   await nextTick();
   captureButton.value.focus({ preventScroll: true });
@@ -236,12 +233,12 @@ async function startAgain() {
     </header>
 
     <main :class="{ 'review-main': status === 'review' }">
-      <ReviewPage v-if="status === 'review'" :scan="scan" @processed="showSuccess" @restart="startAgain" />
+      <ReviewPage v-if="status === 'review'" :scan="scan" @processed="showSuccess" @restart="startAgain" @error="showError" />
       <section v-else-if="status === 'success'" class="success-page" aria-labelledby="result-heading">
         <span class="success-symbol" aria-hidden="true">
           <svg viewBox="0 0 32 32" fill="none"><path d="m8 16 5 5L24 10" /></svg>
         </span>
-        <h1 id="result-heading" ref="resultHeading" tabindex="-1">Formulář byl úspěšně zpracován</h1>
+        <h1 id="result-heading" ref="resultHeading" tabindex="-1">Formulář byl úspěšně zpracován.</h1>
         <button class="secondary-button" type="button" @click="startAgain">Naskenovat další formulář</button>
       </section>
 
@@ -276,7 +273,7 @@ async function startAgain() {
         <div class="visually-hidden" role="status" aria-live="polite">
           <span v-if="status === 'uploading'">Čteme formulář…</span>
         </div>
-        <p v-if="error" class="error-message" role="alert">{{ error }}</p>
+        <ErrorMessage :message="error" />
 
       </section>
     </main>

@@ -6,7 +6,7 @@ from uuid import UUID
 from anyio import Path
 from PIL import Image, ImageOps
 
-from form.exceptions import UserInputError
+from form.exceptions import ScanError
 from form.llm.model import BoundingBox
 from form.settings import Settings
 
@@ -33,7 +33,7 @@ class ImageService:
             right = min(source.width, bounding_box.bottom_right.x)
             bottom = min(source.height, bounding_box.bottom_right.y)
             if right <= left or bottom <= top:
-                raise UserInputError("Bounding box does not intersect the image")
+                raise ScanError("Bounding box does not intersect the image")
             with source.crop((left, top, right, bottom)) as cropped:
                 return self._jpeg(cropped)
 

@@ -1,11 +1,13 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import ErrorMessage from './ErrorMessage.vue';
+import { readApiError } from './api.js';
 
 const props = defineProps({ scan: { type: Object, required: true } });
-const emit = defineEmits(['processed', 'restart']);
+const emit = defineEmits(['processed', 'restart', 'error']);
 const heading = ref(null);
 const submitting = ref(false);
-const error = ref('');
+const error = ref(null);
 const failed = ref(false);
 const controller = new AbortController();
 const fields = ref(props.scan.reviews.map((field) => ({
@@ -72,7 +74,21 @@ async function loadCrop(field) {
       body: JSON.stringify(field.bounding_box),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error('Crop unavailable');
+    if (!response.ok) {
+      if (response.status === 500 || response.status === 422) {
+        const message = await readApiError(response, 'Výřez se nepodařilo načíst.');
+        if (controller.signal.aborted) return;
+        if (response.status === 500) {
+          controller.abort();
+          emit('error', message);
+        } else {
+          error.value = message;
+          field.cropError = true;
+        }
+        return;
+      }
+      throw new Error('Crop unavailable');
+    }
     const blob = await response.blob();
     if (!controller.signal.aborted) field.crop = URL.createObjectURL(blob);
   } catch {
@@ -89,7 +105,7 @@ async function submit() {
     return;
   }
   submitting.value = true;
-  error.value = '';
+  error.value = null;
   try {
     const response = await fetch('/api/scan/review', {
       method: 'POST',
@@ -101,15 +117,18 @@ async function submit() {
     });
     if (response.ok) {
       emit('processed');
-    } else if (response.status === 422) {
-      error.value = 'Některou hodnotu se nepodařilo ověřit. Zkontrolujte pole a odešlete je znovu.';
     } else {
-      failed.value = true;
-      error.value = 'Formulář se nepodařilo zpracovat. Naskenujte jej prosím znovu.';
+      const message = await readApiError(response, 'Formulář se nepodařilo zpracovat.');
+      if (response.status === 500) {
+        emit('error', message);
+      } else {
+        failed.value = response.status !== 422;
+        error.value = message;
+      }
     }
   } catch {
     failed.value = true;
-    error.value = 'Spojení bylo přerušeno. Nelze ověřit, zda byl formulář zpracován.';
+    error.value = { error: 'Spojení bylo přerušeno. Nelze ověřit, zda byl formulář zpracován.', details: '' };
   } finally {
     submitting.value = false;
   }
@@ -170,7 +189,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <p v-if="error" class="error-message" role="alert">{{ error }}</p>
+      <ErrorMessage :message="error" />
       <button v-if="failed" class="photo-button review-submit" type="button" @click="emit('restart')">Naskenovat znovu</button>
       <button v-else class="photo-button review-submit" type="submit" :disabled="submitting">
         <span v-if="submitting" class="spinner" aria-hidden="true"></span>

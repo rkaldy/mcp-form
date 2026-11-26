@@ -12,7 +12,7 @@ from gspread import Spreadsheet
 from gspread.utils import a1_to_rowcol, absolute_range_name, rowcol_to_a1
 from pydantic import JsonValue
 
-from form.exceptions import ProcessingError
+from form.exceptions import ProcessingError, UserInputError
 from form.model.form import Form
 from form.settings import Settings
 from form.utils import GoogleSpreadsheet
@@ -149,7 +149,7 @@ class ProcessingService:
             or form.static_fields.date.value is None
             or form.static_fields.member_count.value is None
         ):
-            raise ProcessingError("Název akce, datum a počet účastníků jsou povinné.")
+            raise UserInputError("Název akce, datum a počet účastníků jsou povinné.")
 
         with GoogleSpreadsheet(spreadsheet=self.target_spreadsheet) as spreadsheet:
             activity_name, requests = self.write_activity(form, spreadsheet)
@@ -239,7 +239,7 @@ class ProcessingService:
             activity_name,
         )
         if activity is None:
-            raise ProcessingError("V seznamu rodin chybí sloupec pro danou akci.")
+            raise UserInputError("V seznamu rodin chybí sloupec pro danou akci.")
         activity_col = activity[1]
         member_start = sheet.find("A1", "A10")
         if member_start is None:
@@ -327,12 +327,7 @@ class ProcessingService:
                 sheet.rows.insert(member_row, [])
             row = sheet.rows[member_row]
             row.extend([""] * max(0, max(activity_col, 3) + 1 - len(row)))
-            try:
-                attendance = int(row[activity_col]) if row[activity_col] else 0
-            except ValueError as error:
-                raise ProcessingError(
-                    "Počet účastí v seznamu rodin musí být celé číslo."
-                ) from error
+            attendance = int(row[activity_col]) if row[activity_col] else 0
             city = (member.city.value or "").strip()
             values: dict[int, str | int | None] = {
                 1: name,

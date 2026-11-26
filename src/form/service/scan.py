@@ -12,7 +12,7 @@ from pydantic import BaseModel, JsonValue, ValidationError
 
 from form.crud.session import SessionCRUD
 from form.database.database import Database
-from form.exceptions import ScanError, UserInputError
+from form.exceptions import ProcessingError, ScanError, UserInputError
 from form.llm.llm import LLM
 from form.llm.model import BoundingBox, FieldType, FormField, Name
 from form.model.form import Form
@@ -97,16 +97,16 @@ class ScanService:
             elif isinstance(current, list):
                 current = current[int(part)]
             else:
-                raise UserInputError("Path does not identify a form field")
+                raise ScanError("Path does not identify a form field")
         if not isinstance(current, dict):
-            raise UserInputError("Path does not identify a form field")
+            raise ScanError("Path does not identify a form field")
         return current
 
     async def get(self, session_id: UUID) -> Session:
         with self.database.connect() as connection:
             session = self.crud.get(connection, session_id)
         if session is None:
-            raise UserInputError("Session not found")
+            raise ScanError("Session not found")
         return session
 
     async def delete(self, session_id: UUID):
@@ -151,8 +151,6 @@ class ScanService:
             await self.get(session_id)
             image = await self.images.load(session_id)
             return self.images.crop(image, bounding_box)
-        except UserInputError, FileNotFoundError:
-            raise
         except Exception as error:
             await self.delete(session_id)
             raise ScanError("Field crop failed") from error
@@ -161,12 +159,12 @@ class ScanService:
         try:
             session = await self.get(review.session_id)
             if session.status != SessionStatus.REVIEWING:
-                raise UserInputError("Session is not awaiting review")
+                raise ScanError("Session is not awaiting review")
             form = Form.model_validate_json(json.dumps(session.extracted_data))
             paths = {correction.path for correction in review.reviews}
             required = {field.path for field in self.review_fields(form)}
             if paths != required:
-                raise UserInputError(
+                raise ScanError(
                     "Submit valid field paths and confirm every requested field once"
                 )
             for correction in review.reviews:
@@ -177,8 +175,8 @@ class ScanService:
                 Form.model_validate_json(
                     json.dumps(session.extracted_data), strict=True
                 )
-            except ValidationError:
-                raise UserInputError("Invalid field value") from None
+            except ValidationError as error:
+                raise UserInputError("Chybně zadaná hodnota") from error
         except UserInputError:
             raise
         except Exception as error:
@@ -196,6 +194,11 @@ class ScanService:
             session.status = SessionStatus.FINISHED
             with self.database.connect() as conn:
                 self.crud.update(conn, session)
+        except UserInputError:
+            raise
+        except ProcessingError as error:
+            await self.delete(session.session_id)
+            raise ScanError("Error in target system") from error
         except Exception as error:
             await self.delete(session.session_id)
             raise ScanError("Form processing failed") from error

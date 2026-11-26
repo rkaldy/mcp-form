@@ -99,8 +99,8 @@ test('camera upload sends exact JPEG bytes and shows pending and success states'
   expect(upload.headers['content-type']).toBe('image/jpeg');
   expect(upload.body).toEqual(image);
   complete();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Naskenovat další formulář' }).click();
   await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeEnabled();
 });
@@ -108,17 +108,17 @@ test('camera upload sends exact JPEG bytes and shows pending and success states'
 test('failed scan remains on home and the same photo can be selected again', async ({ page, scanApi }) => {
   scanApi.respond = async (request, response) => {
     if (scanApi.requests.length === 1) {
-      response.writeHead(500).end(JSON.stringify({ detail: 'Form processing failed' }));
+      response.writeHead(500).end(JSON.stringify({ error: 'Zpracování selhalo', details: 'Testovací chyba serveru' }));
     } else {
       await forwardScan(request, response);
     }
   };
   await page.goto('/');
   await takePhoto(page);
-  await expect(page.getByRole('alert')).toContainText('Formulář se nepodařilo zpracovat');
+  await expect(page.getByRole('alert')).toContainText('Zpracování selhalo');
   await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeEnabled();
   await takePhoto(page);
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeVisible();
   expect(scanApi.requests).toHaveLength(2);
 });
 
@@ -134,7 +134,7 @@ test('non-JPEG camera images are converted to the JPEG accepted by the API', asy
     return canvas.toDataURL('image/png').split(',')[1];
   });
   await takePhoto(page, { name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeVisible();
   const upload = scanApi.requests[0];
   expect(upload.headers['content-type']).toBe('image/jpeg');
   expect([...upload.body.subarray(0, 2)]).toEqual([0xff, 0xd8]);
@@ -143,13 +143,14 @@ test('non-JPEG camera images are converted to the JPEG accepted by the API', asy
 
 test('server upload limits show an understandable error', async ({ page, scanApi }) => {
   scanApi.respond = async (_request, response) => {
-    response.writeHead(422).end(JSON.stringify({ detail: 'Image must not exceed 100 bytes' }));
+    response.writeHead(422).end(JSON.stringify({ error: 'Obrázek je příliš velký', details: 'Maximální velikost je 100 bajtů.' }));
   };
   await page.goto('/');
   await takePhoto(page);
-  await expect(page.getByRole('alert')).toContainText('Fotka je příliš velká');
+  await expect(page.getByRole('alert')).toContainText('Obrázek je příliš velký');
+  await expect(page.getByRole('alert')).toContainText('Maximální velikost je 100 bajtů.');
   await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeEnabled();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).not.toBeVisible();
 });
 
 async function provideCamera(page, delayed = false) {
@@ -188,7 +189,7 @@ test('camera preview captures and uploads a JPEG, then stops all tracks', async 
   expect(await page.evaluate(() => window.cameraConstraints.audio)).toBe(false);
   expect(await page.evaluate(() => window.cameraConstraints.video.facingMode)).toEqual({ ideal: 'environment' });
   await page.getByRole('button', { name: 'Vyfotit', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeVisible();
   expect(scanApi.requests).toHaveLength(1);
   expect(scanApi.requests[0].headers['content-type']).toBe('image/jpeg');
   expect([...scanApi.requests[0].body.subarray(0, 2)]).toEqual([0xff, 0xd8]);
@@ -281,9 +282,9 @@ test('review loads real crops, validates corrections and confirms completed proc
   });
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Zpracováváme…', exact: true })).toBeDisabled();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).not.toBeVisible();
   finish();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeFocused();
 });
 
 test('server validation failure preserves corrections and allows another submission', async ({ page }) => {
@@ -291,14 +292,16 @@ test('server validation failure preserves corrections and allows another submiss
   await fillCorrections(page);
   let attempts = 0;
   await page.route('**/api/scan/review', async (route) => {
-    if (++attempts === 1) await route.fulfill({ status: 422, json: { detail: 'Invalid field value' } });
+    if (++attempts === 1) await route.fulfill({ status: 422, json: { error: 'Chybně zadaná hodnota', detail: 'Počet účastníků musí být celé číslo.' } });
     else await route.continue();
   });
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Některou hodnotu se nepodařilo ověřit');
+  await expect(page.getByRole('alert')).toContainText('Chybně zadaná hodnota');
+  await expect(page.getByRole('alert')).toContainText('Počet účastníků musí být celé číslo.');
+  await expect(page.getByRole('heading', { name: 'Zkontroluj tato pole' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Počet účastníků', exact: true })).toHaveValue('3');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
 });
 
 test('review handles decimal commas, checkboxes, nulls and missing crops', async ({ page, scanApi }) => {
@@ -326,7 +329,7 @@ test('review handles decimal commas, checkboxes, nulls and missing crops', async
     await route.fulfill({ status: 204 });
   });
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
   expect(submitted.reviews).toEqual([
     { path: 'amount', value: '12.75' }, { path: 'confirmed', value: true }, { path: 'note', value: null },
   ]);
@@ -347,17 +350,80 @@ test('crop failures can be retried without losing edited values', async ({ page 
   await expect(page.getByRole('img', { name: /^Výřez:/ })).toHaveCount(4);
   await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Opravená aktivita');
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).toBeVisible();
 });
 
-test('processing failure shows no success and offers a new scan', async ({ page }) => {
+test('processing failure returns home with server error and details', async ({ page }) => {
   await openReview(page);
   await fillCorrections(page);
-  await page.route('**/api/scan/review', (route) => route.fulfill({ status: 500 }));
+  await page.route('**/api/scan/review', (route) => route.fulfill({ status: 500, json: { error: 'Zpracování selhalo', details: 'Cílová tabulka není dostupná.' } }));
   await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Formulář se nepodařilo zpracovat');
-  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován' })).not.toBeVisible();
+  const alert = page.getByRole('alert');
+  await expect(alert.locator('.error-title')).toHaveText('Zpracování selhalo');
+  await expect(alert.locator('.error-details')).toHaveText('Cílová tabulka není dostupná.');
+  expect(await alert.locator('.error-details').evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeLessThan(
+    await alert.locator('.error-title').evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+  );
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.' })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Zkontroluj tato pole' })).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Odeslat', exact: true })).not.toBeVisible();
-  await page.getByRole('button', { name: 'Naskenovat znovu', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeFocused();
+});
+
+test('real review validation errors show server text and retain all corrections', async ({ page }) => {
+  await openReview(page);
+  await fillCorrections(page);
+  let validationError;
+  let first = true;
+  await page.route('**/api/scan/review', async (route) => {
+    if (first) {
+      first = false;
+      const body = route.request().postDataJSON();
+      body.reviews.find((field) => field.path === 'static_fields.member_count').value = 'not an integer';
+      const response = await route.fetch({ postData: JSON.stringify(body) });
+      validationError = await response.json();
+      await route.fulfill({ response });
+    } else await route.continue();
+  });
+  await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
+  const alert = page.getByRole('alert');
+  await expect(alert.locator('.error-title')).toHaveText('Chybně zadaná hodnota');
+  await expect(alert.locator('.error-details')).toHaveText(validationError.details ?? validationError.detail);
+  await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Opravená aktivita');
+  await expect(page.getByRole('textbox', { name: 'Počet účastníků', exact: true })).toHaveValue('3');
+  await expect(page.getByRole('textbox', { name: 'Datum realizace (od - do)', exact: true })).toHaveValue('9.11.2026');
+  await expect(page.getByRole('textbox', { name: 'Jméno a příjmení účastníka: Příjmení', exact: true })).toHaveValue('Ukázková');
+  await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Formulář byl úspěšně zpracován.', exact: true })).toBeVisible();
+});
+
+for (const status of [500, 422]) {
+  test(`crop HTTP ${status} displays server error on the appropriate page`, async ({ page }) => {
+    await page.route('**/api/scan/field?*', (route) => route.fulfill({
+      status,
+      json: { error: 'Výřez nelze načíst', details: 'Testovací podrobnosti chyby výřezu.' },
+    }));
+    await page.goto('/');
+    await takePhoto(page, reviewImagePath);
+    const alert = page.getByRole('alert');
+    await expect(alert.locator('.error-title')).toHaveText('Výřez nelze načíst');
+    await expect(alert.locator('.error-details')).toHaveText('Testovací podrobnosti chyby výřezu.');
+    if (status === 500) {
+      await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeEnabled();
+      await expect(page.getByRole('heading', { name: 'Zkontroluj tato pole' })).not.toBeVisible();
+    } else {
+      await expect(page.getByRole('heading', { name: 'Zkontroluj tato pole' })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Název aktivity', exact: true })).toHaveValue('Testovací aktivita');
+      await expect(page.getByRole('button', { name: 'Odeslat', exact: true })).toBeEnabled();
+    }
+  });
+}
+
+test('a server failure without JSON returns home with a fallback error', async ({ page }) => {
+  await openReview(page);
+  await fillCorrections(page);
+  await page.route('**/api/scan/review', (route) => route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' }));
+  await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Formulář se nepodařilo zpracovat.');
   await expect(page.getByRole('button', { name: 'Vyfotit formulář' })).toBeFocused();
 });

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from form.exceptions import UserInputError
+from form.exceptions import ScanError, UserInputError
 from form.llm.model import BoundingBox
 from form.model.session import ReviewRequest, ScanResponse
 from form.service.dependencies import get_scan_service, get_settings
@@ -35,16 +35,16 @@ async def scan(
         request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         != "image/jpeg"
     ):
-        raise UserInputError("Upload an image/jpeg request body")
+        raise ScanError("Upload an image/jpeg request body")
     image = bytearray()
     async for chunk in request.stream():
         image.extend(chunk)
         if len(image) > settings.max_upload_size_bytes:
             raise UserInputError(
-                f"Image must not exceed {settings.max_upload_size_bytes} bytes"
+                f"Obrázek může mít nejvýše {settings.max_upload_size_bytes} bajtů"
             )
     if not image:
-        raise UserInputError("Image must not be empty")
+        raise ScanError("Image must not be empty")
     return await scan_service.scan(bytes(image))
 
 

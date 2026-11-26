@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from freezegun import freeze_time
-from pydantic import JsonValue
+from pydantic import JsonValue, ValidationError
 
 from form.crud.session import SessionCRUD
 from form.database.database import Database
@@ -134,23 +134,47 @@ async def test_session_lifecycle_at_external_boundaries(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    "mode", ["type", "missing", "unknown", "metadata", "negative", "huge"]
-)
 async def test_invalid_review_preserves_session(
     scan_service: ScanService,
+    review_session: Session,
+    form: Form,
+    db_conn: Connection,
+    image_service,
+    processing_service,
+):
+    """Translate an invalid value to UserInputError while retaining the original session."""
+    reviews = [
+        Review(path=item.path, value=item.value)
+        for item in scan_service.review_fields(form)
+    ]
+    reviews[0].value = "not a number"
+    with pytest.raises(UserInputError, match="Chybně zadaná hodnota") as caught:
+        await scan_service.review(
+            ReviewRequest(session_id=review_session.session_id, reviews=reviews)
+        )
+    assert isinstance(caught.value.__cause__, ValidationError)
+    assert SessionCRUD().get(db_conn, review_session.session_id) == review_session
+    processing_service.process.assert_not_awaited()
+    image_service.delete.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ["missing", "unknown", "metadata", "negative", "huge"])
+async def test_invalid_review_paths_remove_session(
+    scan_service: ScanService,
+    review_session: Session,
+    form: Form,
     db_conn: Connection,
     image_service,
     processing_service,
     mode: str,
 ):
-    """Reject user mistakes before persisting edits, processing or deleting an image."""
-    response = await scan_service.scan(b"jpeg")
-    before = SessionCRUD().get(db_conn, response.session_id)
-    reviews = [Review(path=item.path, value=item.value) for item in response.reviews]
-    if mode == "type":
-        reviews[0].value = "not a number"
-    elif mode == "missing":
+    """Invalid or incomplete paths are ScanError failures that clean up the session."""
+    reviews = [
+        Review(path=item.path, value=item.value)
+        for item in scan_service.review_fields(form)
+    ]
+    if mode == "missing":
         reviews.pop()
     else:
         path = {
@@ -160,13 +184,14 @@ async def test_invalid_review_preserves_session(
             "huge": f"table_fields.{'9' * 5000}.name",
         }[mode]
         reviews.append(Review(path=path, value=None))
-    with pytest.raises(UserInputError):
+    with pytest.raises(ScanError, match="Form review failed") as caught:
         await scan_service.review(
-            ReviewRequest(session_id=response.session_id, reviews=reviews)
+            ReviewRequest(session_id=review_session.session_id, reviews=reviews)
         )
-    assert SessionCRUD().get(db_conn, response.session_id) == before
+    assert isinstance(caught.value.__cause__, ScanError)
+    assert SessionCRUD().get(db_conn, review_session.session_id) is None
     processing_service.process.assert_not_awaited()
-    image_service.delete.assert_not_awaited()
+    image_service.delete.assert_awaited_once_with(review_session.session_id)
 
 
 def test_review_fields_excludes_fields_at_threshold(
