@@ -1,3 +1,11 @@
+FROM node:22-slim AS ui-builder
+WORKDIR /ui
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY vite.config.js ./
+COPY ui ./ui
+RUN npm run build
+
 FROM python:3.14-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /usr/local/bin/uv
 WORKDIR /app
@@ -5,6 +13,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 COPY src ./src
+COPY --from=ui-builder /ui/src/form/static ./src/form/static
 RUN uv sync --locked --no-dev --no-editable
 
 FROM python:3.14-slim AS runtime

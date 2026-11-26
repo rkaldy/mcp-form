@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 .pytest_cache/
 .ruff_cache/
@@ -11,3 +12,7 @@ pylock.toml
 .env*
 !.env.example
 gsa.json
+node_modules/
+src/form/static/
+test-results/
+playwright-report/

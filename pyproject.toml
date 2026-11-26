@@ -37,6 +37,9 @@ filterwarnings = ['ignore:Items? .* on TypedDict class .* (is|are) using the `Re
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+form = ["static/*", "static/assets/*"]
+
 [tool.mypy]
 explicit_package_bases = true
 mypy_path = "src"

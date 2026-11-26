@@ -3,6 +3,11 @@
 !docker-entrypoint.sh
 !pyproject.toml
 !uv.lock
+!package.json
+!package-lock.json
+!vite.config.js
+!ui/
+!ui/**
 !alembic.ini
 !src/
 !src/**
@@ -10,3 +15,4 @@
 !migrations/**
 **/__pycache__/
 **/*.py[cod]
+src/form/static/

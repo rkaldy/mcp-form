@@ -1,0 +1,35 @@
+{
+  "static_fields": {
+    "activity_name": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "activity_theme": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "date": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "lecturer1": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "lecturer2": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    },
+    "member_count": {
+      "value": null,
+      "confidence": 100,
+      "bounding_box": null
+    }
+  },
+  "table_fields": []
+}

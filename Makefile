@@ -1,6 +1,7 @@
-.PHONY: run build lint test test-external
+.PHONY: run build lint test test-external test-e2e
 
 run:
+	npm run build
 	uv run alembic upgrade head
 	uv run uvicorn form.app:app --host 0.0.0.0 --port 8000 --reload
 
@@ -17,3 +18,6 @@ test:
 
 test-external:
 	uv run pytest -vv tests/external
+
+test-e2e:
+	npm run test:e2e
