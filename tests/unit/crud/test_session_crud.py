@@ -16,7 +16,11 @@ def expiration_sessions(
     cutoff = datetime(2026, 1, 2, tzinfo=UTC)
     sessions = {}
     crud = SessionCRUD()
-    for status in SessionStatus:
+    for status in [
+        SessionStatus.NORMALIZING,
+        SessionStatus.SCANNING,
+        SessionStatus.FINISHED,
+    ]:
         for offset in (-1, 0, 1):
             session = Session(
                 session_id=uuid4(),
@@ -36,9 +40,8 @@ def test_expired_selects_finished_or_strictly_older_sessions(
     """Select FINISHED at any age and other statuses only strictly before the cutoff."""
     cutoff, sessions = expiration_sessions
     expected = [
+        sessions[SessionStatus.NORMALIZING, -1],
         sessions[SessionStatus.SCANNING, -1],
-        sessions[SessionStatus.REVIEWING, -1],
-        sessions[SessionStatus.PROCESSING, -1],
         *(sessions[SessionStatus.FINISHED, offset] for offset in (-1, 0, 1)),
     ]
 

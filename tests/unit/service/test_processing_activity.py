@@ -5,12 +5,17 @@ from pytest_mock import MockerFixture
 
 from form.model.form import Form
 from form.service.processing import ProcessingService
+from form.service.session import SessionService
 from form.settings import Settings
 
 
 @pytest.mark.parametrize("participants", [0, 1, 3])
 def test_write_activity_counts_table_rows(
-    mocker: MockerFixture, settings: Settings, form: Form, participants: int
+    mocker: MockerFixture,
+    settings: Settings,
+    session_service: SessionService,
+    form: Form,
+    participants: int,
 ):
     """Write the number of scanned participant rows into the attendance column."""
     spreadsheet = mocker.Mock()
@@ -30,7 +35,9 @@ def test_write_activity_counts_table_rows(
     original = form.table_fields[0]
     form.table_fields = [original.model_copy(deep=True) for _ in range(participants)]
 
-    _, requests = ProcessingService(settings).write_activity(form, spreadsheet)
+    _, requests = ProcessingService(settings, session_service).write_activity(
+        form, spreadsheet
+    )
 
     assert {
         "updateCells": {

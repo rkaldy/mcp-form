@@ -32,6 +32,7 @@ def settings(tmp_path_factory: TempPathFactory) -> Settings:
         llm_api_key=SecretStr("synthetic-key"),
         llm_reasoning_effort=None,
         llm_timeout=120,
+        max_image_size=2400,
         max_upload_size_bytes=20 * 1024 * 1024,
         confidence_threshold=75,
         session_ttl=timedelta(hours=24),

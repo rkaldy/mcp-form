@@ -3,28 +3,26 @@
 import json
 import logging
 import re
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import get_args
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pydantic import BaseModel, JsonValue, ValidationError
 
-from form.crud.session import SessionCRUD
-from form.database.database import Database
-from form.exceptions import ProcessingError, ScanError, UserInputError
+from form.exceptions import FatalError, UserInputError
+from form.llm.instruction import Instruction
 from form.llm.llm import LLM
-from form.llm.model import BoundingBox, FieldType, FormField, Name
+from form.llm.model import BoundingBox, FieldType, FormField, FormTransformation, Name
 from form.model.form import Form
 from form.model.session import (
     ReviewRequest,
-    ScanResponse,
     Session,
     SessionStatus,
     ToReview,
 )
 from form.service.image import ImageService
-from form.service.processing import ProcessingService
+from form.service.session import SessionService
 from form.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -33,21 +31,17 @@ logger = logging.getLogger(__name__)
 class ScanService:
     def __init__(
         self,
-        database: Database,
+        settings: Settings,
+        sessions: SessionService,
         images: ImageService,
         llm: LLM,
-        processing: ProcessingService,
-        settings: Settings,
     ):
-        self.database = database
+        self.sessions = sessions
         self.images = images
         self.llm = llm
-        self.processing = processing
         self.confidence_threshold = settings.confidence_threshold
-        self.session_ttl = settings.session_ttl
-        self.crud = SessionCRUD()
 
-    def review_fields(self, model: BaseModel, prefix: str = "") -> list[ToReview]:
+    def _review_fields(self, model: BaseModel, prefix: str = "") -> list[ToReview]:
         result = []
         for name, definition in type(model).model_fields.items():
             field = getattr(model, name)
@@ -81,11 +75,11 @@ class ScanService:
                         )
                     )
             elif isinstance(field, BaseModel):
-                result.extend(self.review_fields(field, path))
+                result.extend(self._review_fields(field, path))
             elif isinstance(field, list):
                 for index, item in enumerate(field):
                     if isinstance(item, BaseModel):
-                        result.extend(self.review_fields(item, f"{path}.{index}"))
+                        result.extend(self._review_fields(item, f"{path}.{index}"))
         return result
 
     @staticmethod
@@ -98,74 +92,62 @@ class ScanService:
             elif isinstance(current, list):
                 current = current[int(part)]
             else:
-                raise ScanError("Path does not identify a form field")
+                raise FatalError("Path does not identify a form field")
         if not isinstance(current, dict):
-            raise ScanError("Path does not identify a form field")
+            raise FatalError("Path does not identify a form field")
         return current
 
-    async def get(self, session_id: UUID) -> Session:
-        with self.database.connect() as connection:
-            session = self.crud.get(connection, session_id)
-        if session is None:
-            raise ScanError("Session not found")
-        return session
-
-    async def delete(self, session_id: UUID):
-        try:
-            await self.images.delete(session_id)
-            with self.database.connect() as connection:
-                self.crud.delete(connection, session_id)
-        except Exception:  # noqa: BLE001 -- best-effort cleanup must neither mask the original error nor expose provider payloads.
-            logger.error(
-                "Session cleanup failed", extra={"session_id": str(session_id)}
-            )
-
-    async def scan(self, scanned_form: bytes) -> ScanResponse:
+    async def normalize(self, scanned_form: bytes) -> UUID:
         session: Session | None = None
         try:
-            image = self.images.normalize(scanned_form)
-            session = Session(
-                session_id=uuid4(),
-                created_at=datetime.now(UTC),
-                extracted_data=None,
-                status=SessionStatus.SCANNING,
+            session = self.sessions.create()
+            normalized = self.images.normalize(scanned_form)
+            transformation = await self.llm.scan(
+                Instruction.ROTATE_CROP, normalized, FormTransformation
             )
-            with self.database.connect() as conn:
-                self.crud.create(conn, session)
-            await self.images.save(session.session_id, image)
-            form = await self.llm.scan(image)
-            session.extracted_data = json.loads(form.model_dump_json())
-            session.status = SessionStatus.REVIEWING
-            with self.database.connect() as conn:
-                self.crud.update(conn, session)
-            reviews = self.review_fields(form)
+            cropped = self.images.rotate_crop(
+                normalized, transformation.rotate, transformation.crop
+            )
+            await self.sessions.save_image(session.session_id, cropped)
+            return session.session_id
         except Exception as error:
             if session is not None:
-                await self.delete(session.session_id)
-            raise ScanError("Form scanning failed") from error
-        if not reviews:
-            await self.process(session)
-        return ScanResponse(session_id=session.session_id, reviews=reviews)
+                await self.sessions.delete(session.session_id)
+            raise FatalError("Form normalization failed") from error
+
+    async def scan(self, session_id: UUID) -> list[ToReview]:
+        session: Session | None = None
+        try:
+            session = self.sessions.load(
+                session_id, SessionStatus.NORMALIZING, SessionStatus.SCANNING
+            )
+            form_scan = await self.sessions.load_image(session_id)
+            form = await self.llm.scan(Instruction.SCAN, form_scan, Form)
+            session.extracted_data = json.loads(form.model_dump_json())
+            self.sessions.save(session, SessionStatus.REVIEWING)
+            return self._review_fields(form)
+        except Exception as error:
+            if session is not None:
+                await self.sessions.delete(session.session_id)
+            raise FatalError("Form scanning failed") from error
 
     async def field_crop(self, session_id: UUID, bounding_box: BoundingBox) -> bytes:
         try:
-            await self.get(session_id)
-            image = await self.images.load(session_id)
-            return self.images.crop(image, bounding_box)
+            self.sessions.load(session_id, SessionStatus.REVIEWING)
+            image = await self.sessions.load_image(session_id)
+            return self.images.rotate_crop(image, 0, bounding_box)
         except Exception as error:
-            await self.delete(session_id)
-            raise ScanError("Field crop failed") from error
+            await self.sessions.delete(session_id)
+            raise FatalError("Field crop failed") from error
 
     async def review(self, review: ReviewRequest):
         try:
-            session = await self.get(review.session_id)
-            if session.status != SessionStatus.REVIEWING:
-                raise ScanError("Session is not awaiting review")
+            session = self.sessions.load(review.session_id, SessionStatus.REVIEWING)
             form = Form.model_validate_json(json.dumps(session.extracted_data))
             paths = {correction.path for correction in review.reviews}
-            required = {field.path for field in self.review_fields(form)}
+            required = {field.path for field in self._review_fields(form)}
             if paths != required:
-                raise ScanError(
+                raise FatalError(
                     "Submit valid field paths and confirm every requested field once"
                 )
             for correction in review.reviews:
@@ -178,40 +160,9 @@ class ScanService:
                 )
             except ValidationError as error:
                 raise UserInputError("Chybně zadaná hodnota") from error
+            self.sessions.save(session, SessionStatus.REVIEWING)
         except UserInputError:
             raise
         except Exception as error:
-            await self.delete(review.session_id)
-            raise ScanError("Form review failed") from error
-        await self.process(session)
-
-    async def process(self, session: Session):
-        """Persist each lifecycle state; cleanup failures never fail successful processing."""
-        try:
-            session.status = SessionStatus.PROCESSING
-            with self.database.connect() as conn:
-                self.crud.update(conn, session)
-            await self.processing.process(session.extracted_data)
-            session.status = SessionStatus.FINISHED
-            with self.database.connect() as conn:
-                self.crud.update(conn, session)
-        except UserInputError:
-            raise
-        except ProcessingError as error:
-            await self.delete(session.session_id)
-            raise ScanError("Error in target system") from error
-        except Exception as error:
-            await self.delete(session.session_id)
-            raise ScanError("Form processing failed") from error
-        await self.delete(session.session_id)
-
-    async def clean(self):
-        """Best-effort cleanup of finished or expired sessions; future cron entrypoint."""
-        try:
-            with self.database.connect() as conn:
-                sessions = self.crud.expired(conn, datetime.now(UTC) - self.session_ttl)
-        except Exception:  # noqa: BLE001 -- cron cleanup failures are logged without returning errors or provider payloads.
-            logger.error("Could not select sessions for cleanup")
-            return
-        for session in sessions:
-            await self.delete(session.session_id)
+            await self.sessions.delete(review.session_id)
+            raise FatalError("Form review failed") from error

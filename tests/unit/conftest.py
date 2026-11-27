@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import JsonValue
@@ -8,6 +9,9 @@ from form.llm.llm import LLM
 from form.model.form import Form
 from form.service.image import ImageService
 from form.service.processing import ProcessingService
+from form.service.session import SessionService
+from form.settings import Settings
+from tests.database import TestDatabase
 
 
 @pytest.fixture
@@ -41,11 +45,19 @@ def form() -> Form:
 
 
 @pytest.fixture
+def session_service(
+    settings: Settings, database: TestDatabase, tmp_path: Path
+) -> SessionService:
+    return SessionService(
+        settings.model_copy(update={"images_path": tmp_path / "images"}), database
+    )
+
+
+@pytest.fixture
 def image_service(mocker: MockerFixture):
     images = mocker.create_autospec(ImageService, instance=True)
     images.normalize.return_value = b"normalized-jpeg"
-    images.load.return_value = b"stored-jpeg"
-    images.crop.return_value = b"cropped-jpeg"
+    images.rotate_crop.return_value = b"cropped-jpeg"
     return images
 
 

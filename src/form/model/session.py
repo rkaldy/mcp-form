@@ -8,6 +8,7 @@ from form.llm.model import BoundingBox, FieldType
 
 
 class SessionStatus(Enum):
+    NORMALIZING = "normalizing"
     SCANNING = "scanning"
     REVIEWING = "reviewing"
     PROCESSING = "processing"
@@ -27,11 +28,6 @@ class ToReview(BaseModel):
     label: str
     value: JsonValue
     bounding_box: BoundingBox | None
-
-
-class ScanResponse(BaseModel):
-    session_id: UUID
-    reviews: list[ToReview]
 
 
 class Review(BaseModel):

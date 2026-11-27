@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import Mapping
 from datetime import date
-from pprint import pprint
+from uuid import UUID
 
 # czech-sort is pure Python but does not publish typing metadata.
 from czech_sort import bytes_key  # type: ignore[import-untyped]
@@ -12,8 +12,10 @@ from gspread import Spreadsheet
 from gspread.utils import a1_to_rowcol, absolute_range_name, rowcol_to_a1
 from pydantic import JsonValue
 
-from form.exceptions import ProcessingError, UserInputError
+from form.exceptions import FatalError, ProcessingError, UserInputError
 from form.model.form import Form
+from form.model.session import Session, SessionStatus
+from form.service.session import SessionService
 from form.settings import Settings
 from form.utils import GoogleSpreadsheet
 
@@ -117,13 +119,30 @@ class Sheet:
 
 
 class ProcessingService:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, sessions: SessionService):
         self.target_spreadsheet = settings.target_spreadsheet
+        self.sessions = sessions
 
-    async def process(self, data: JsonValue):
-        """Write one completed activity; do not retry potentially successful writes."""
-        form = Form.model_validate_json(json.dumps(data))
-        await asyncio.to_thread(self.do_process, form)
+    async def process(self, session_id: UUID):
+        session: Session | None = None
+        try:
+            session = self.sessions.load(
+                session_id, SessionStatus.REVIEWING, SessionStatus.PROCESSING
+            )
+            form = Form.model_validate_json(json.dumps(session.extracted_data))
+            await asyncio.to_thread(self.do_process, form)
+            session.status = SessionStatus.FINISHED
+            self.sessions.save(session, SessionStatus.FINISHED)
+        except UserInputError:
+            if session:
+                self.sessions.save(session, SessionStatus.REVIEWING)
+            raise
+        except ProcessingError as error:
+            await self.sessions.delete(session_id)
+            raise FatalError("Error in target system") from error
+        except Exception as error:
+            await self.sessions.delete(session_id)
+            raise FatalError("Form processing failed") from error
 
     @staticmethod
     def find_template(sheet: Sheet, activity_name: str) -> tuple[str, int]:
@@ -153,7 +172,6 @@ class ProcessingService:
         with GoogleSpreadsheet(spreadsheet=self.target_spreadsheet) as spreadsheet:
             activity_name, requests = self.write_activity(form, spreadsheet)
             requests += self.write_members(form, activity_name, spreadsheet)
-            pprint(requests)
             spreadsheet.batch_update({"requests": requests})
 
     def write_activity(

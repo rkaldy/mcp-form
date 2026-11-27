@@ -5,19 +5,24 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from uuid import UUID
 
 from alembic import command
 from alembic.config import Config
 from PIL import Image
-from pydantic import JsonValue, SecretStr
+from pydantic import SecretStr
 from sqlalchemy import URL
 
 from form.app import app
+from form.database.database import Database
+from form.llm.instruction import Instruction
 from form.llm.llm import LLM, get_llm
-from form.llm.model import BoundingBox, Coord, Name
+from form.llm.model import BoundingBox, Coord, FormTransformation, LLMBase, Name
 from form.model.form import Form, TableFields
+from form.model.session import SessionStatus
 from form.service.dependencies import get_processing_service
 from form.service.processing import ProcessingService
+from form.service.session import SessionService
 from form.settings import Settings, get_settings
 
 storage = TemporaryDirectory(prefix="form-scanner-e2e-")
@@ -37,10 +42,21 @@ form = Form.model_validate_json(
 
 
 class FixtureLLM(LLM):
-    async def scan(self, jpg_file: bytes) -> Form:
+    async def scan[OutputType: LLMBase](
+        self, instruction: Instruction, image: bytes, output_type: type[OutputType]
+    ) -> OutputType:
         result = form.model_copy(deep=True)
-        with Image.open(BytesIO(jpg_file)) as image:
-            needs_review = image.size == (64, 48)
+        with Image.open(BytesIO(image)) as source:
+            if instruction is Instruction.ROTATE_CROP:
+                transformation = FormTransformation(
+                    rotate=0,
+                    crop=BoundingBox(
+                        top_left=Coord(x=0, y=0),
+                        bottom_right=Coord(x=source.width, y=source.height),
+                    ),
+                )
+                return output_type.model_validate_json(transformation.model_dump_json())
+            needs_review = source.size == (64, 48)
         if needs_review:
             box = BoundingBox(top_left=Coord(x=0, y=0), bottom_right=Coord(x=32, y=24))
             for name, value in [
@@ -65,13 +81,14 @@ class FixtureLLM(LLM):
                     }
                 )
             ]
-        return result
+        return output_type.model_validate_json(result.model_dump_json())
 
 
 class FixtureProcessingService(ProcessingService):
-    async def process(self, data: JsonValue):
-        # A successful UI confirmation must follow processing of the corrected values.
-        processed = Form.model_validate_json(json.dumps(data))
+    async def process(self, session_id: UUID):
+        # A successful UI confirmation must follow processing of the persisted corrections.
+        session = self.sessions.load(session_id, SessionStatus.REVIEWING)
+        processed = Form.model_validate_json(json.dumps(session.extracted_data))
         if processed.table_fields:
             assert processed.static_fields.activity_name.value == "Opravená aktivita"
             assert processed.static_fields.date.value == date(2026, 11, 9)
@@ -91,5 +108,5 @@ command.upgrade(config, "head")
 app.dependency_overrides[get_settings] = lambda: settings
 app.dependency_overrides[get_llm] = lambda: FixtureLLM(settings)
 app.dependency_overrides[get_processing_service] = lambda: FixtureProcessingService(
-    settings
+    settings, SessionService(settings, Database(settings))
 )

@@ -16,7 +16,7 @@ sessions = Table(
         "json_valid(extracted_data)", name="ck_sessions_extracted_data_json"
     ),
     CheckConstraint(
-        "status IN ('scanning', 'reviewing', 'processing', 'finished')",
+        "status IN ('normalizing', 'scanning', 'reviewing', 'processing', 'finished')",
         name="ck_sessions_status",
     ),
     Index("ix_sessions_created_at", "created_at"),

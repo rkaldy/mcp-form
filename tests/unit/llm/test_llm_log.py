@@ -5,7 +5,9 @@ import litellm
 import pytest
 from pytest_mock import MockerFixture
 
+from form.llm.instruction import Instruction
 from form.llm.llm import LLM
+from form.model.form import Form
 
 
 @pytest.fixture
@@ -44,13 +46,13 @@ async def test_scan_truncates_debug_log_without_modifying_result(
     """Public scan logs abbreviated nested text while returning the complete extraction."""
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=long_form_response)
     with caplog.at_level(logging.DEBUG, logger="form.llm.llm"):
-        result = await llm.scan(scan_jpeg)
+        result = await llm.scan(Instruction.SCAN, scan_jpeg, Form)
 
     records = [record for record in caplog.records if record.name == "form.llm.llm"]
     assert len(records) == 1
     event, payload = records[0].getMessage().split(": ", 1)
     logged = json.loads(payload)
-    assert event == "SCAN"
+    assert event == Instruction.SCAN.code
     assert (
         logged["static_fields"]["activity_name"]["value"] == "ž" * 30 + "... (31 chars)"
     )
@@ -75,5 +77,5 @@ async def test_scan_does_not_log_form_without_debug(
     """A normal scan produces no form payload log when debug logging is disabled."""
     mocker.patch("form.llm.llm.litellm.acompletion", return_value=long_form_response)
     with caplog.at_level(logging.INFO, logger="form.llm.llm"):
-        await llm.scan(scan_jpeg)
+        await llm.scan(Instruction.SCAN, scan_jpeg, Form)
     assert not [record for record in caplog.records if record.name == "form.llm.llm"]

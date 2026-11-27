@@ -14,9 +14,9 @@ from litellm.types.utils import Choices
 from openai import APIError
 from pydantic import BaseModel, JsonValue, ValidationError
 
-from form.exceptions import ScanError
+from form.exceptions import FatalError
 from form.llm.instruction import Instruction
-from form.model.form import Form
+from form.llm.model import LLMBase
 from form.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class LLM:
                 not isinstance(result, litellm.ModelResponse)
                 or len(result.choices) != 1
             ):
-                raise ScanError("Provider returned an unexpected response")
+                raise FatalError("Provider returned an unexpected response")
             choice = result.choices[0]
             if (
                 not isinstance(choice, Choices)
@@ -76,7 +76,7 @@ class LLM:
                 or getattr(choice.message, "refusal", None)
                 or not choice.message.content
             ):
-                raise ScanError("Provider did not return a complete structured answer")
+                raise FatalError("Provider did not return a complete structured answer")
             return choice.message.content
         except ValidationError as error:
             message = str(
@@ -90,27 +90,29 @@ class LLM:
         secret = self.api_key.get_secret_value()
         if secret:
             message = message.replace(secret, "***")
-        raise ScanError(message)
+        raise FatalError(message)
 
     async def health(self) -> bool:
         """Check the LLM is ready to user"""
         await self.query([{"role": "user", "content": "Reply OK."}])
         return True
 
-    async def scan(self, jpg_file: bytes) -> Form:
+    async def scan[OutputType: LLMBase](
+        self, instruction: Instruction, image: bytes, output_type: type[OutputType]
+    ) -> OutputType:
         """Extract a form from JPEG file contents without changing the image."""
-        width, height = imagesize.get(BytesIO(jpg_file), exif_rotation=False)
+        width, height = imagesize.get(BytesIO(image), exif_rotation=False)
         if width <= 0 or height <= 0:
-            raise ScanError("Could not determine JPEG image dimensions")
-        image_url = f"data:image/jpeg;base64,{b64encode(jpg_file).decode('ascii')}"
+            raise FatalError("Could not determine JPEG image dimensions")
+        image_url = f"data:image/jpeg;base64,{b64encode(image).decode('ascii')}"
         messages: list[dict] = [
-            {"role": "system", "content": Instruction.SCAN.value},
+            {"role": "system", "content": instruction.value},
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "text",
-                        "text": f"Extract this form. Image dimensions: {width} × {height} pixels.",
+                        "text": f"Image dimensions: {width} × {height} pixels.",
                     },
                     {
                         "type": "image_url",
@@ -120,12 +122,12 @@ class LLM:
                 ],
             },
         ]
-        result = await self.query(messages, Form)
-        LLM._log("SCAN", result)
+        result = await self.query(messages, output_type)
+        LLM._log(instruction.code, result)
         try:
-            return Form.model_validate_json(result, strict=True, extra="forbid")
+            return output_type.model_validate_json(result, strict=True, extra="forbid")
         except ValidationError as error:
-            raise ScanError(
+            raise FatalError(
                 str(
                     error.errors(
                         include_input=False, include_context=False, include_url=False

@@ -1,54 +1,34 @@
-from collections.abc import AsyncIterator
-from pathlib import Path
-from uuid import uuid4
+from collections.abc import AsyncGenerator
 
-import httpx
 import pytest
-from pytest_mock import MockerFixture
+from fastapi import Request
 
-from form.app import app
-from form.model.session import ScanResponse
-from form.service.dependencies import get_scan_service, get_settings
-from form.service.scan import ScanService
+from form.api.models import ScanResult
+from form.api.scan import scan
+from form.model.session import SessionStatus
 from form.settings import Settings
-
-
-@pytest.fixture
-def scan_service(mocker: MockerFixture):
-    service = mocker.create_autospec(ScanService, instance=True)
-    service.scan.return_value = ScanResponse(session_id=uuid4(), reviews=[])
-    return service
-
-
-@pytest.fixture
-def jpeg_bytes() -> bytes:
-    """Load a synthetic JPEG before entering asynchronous test execution."""
-    return (Path(__file__).parents[1] / "fixtures" / "blank.jpg").read_bytes()
-
-
-@pytest.fixture
-async def client(scan_service, settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
-    """Use the actual route with a mocked service and isolated upload configuration."""
-    app.dependency_overrides[get_scan_service] = lambda: scan_service
-    app.dependency_overrides[get_settings] = lambda: settings
-    try:
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            yield client
-    finally:
-        app.dependency_overrides.pop(get_scan_service)
-        app.dependency_overrides.pop(get_settings)
 
 
 @pytest.mark.anyio
 async def test_scan_passes_uploaded_image_to_service(
-    client: httpx.AsyncClient, scan_service, jpeg_bytes: bytes
+    scan_service, processing_service, settings: Settings, jpeg_bytes: bytes
 ):
-    """An HTTP upload passes the exact request image bytes to ScanService.scan."""
-    response = await client.post(
-        "/api/scan", content=jpeg_bytes, headers={"Content-Type": "image/jpeg"}
-    )
+    """Emit NORMALIZING on the first iteration, before starting image normalization."""
 
-    assert response.status_code == 200
-    scan_service.scan.assert_awaited_once_with(jpeg_bytes)
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": jpeg_bytes, "more_body": False}
+
+    request = Request(
+        {"type": "http", "headers": [(b"content-type", b"image/jpeg")]}, receive
+    )
+    response = await scan(request, settings, scan_service, processing_service)
+    stream = aiter(response.body_iterator)
+    try:
+        chunk = await anext(stream)
+        assert isinstance(chunk, str)
+        assert ScanResult.model_validate_json(chunk) == ScanResult(
+            session_id=None, status=SessionStatus.NORMALIZING
+        )
+    finally:
+        if isinstance(stream, AsyncGenerator):
+            await stream.aclose()

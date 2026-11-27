@@ -50,3 +50,8 @@ class FormField[ValueType](LLMBase):
         le=100,
         description="Scanning confidence, 0=totally unreadable, 100=surely readable",
     )
+
+
+class FormTransformation(LLMBase):
+    rotate: int = Field(description="Image rotation in degrees")
+    crop: BoundingBox = Field(description="Image cropping box")

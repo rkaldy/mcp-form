@@ -7,8 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from form.api.scans import router
-from form.exceptions import ScanError, UserInputError
+from form.api.scan import router
+from form.exceptions import FatalError, UserInputError
 from form.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,8 @@ async def user_input_error(_request: Request, error: UserInputError) -> JSONResp
     )
 
 
-@app.exception_handler(ScanError)
-async def scan_error(_request: Request, error: ScanError) -> JSONResponse:
+@app.exception_handler(FatalError)
+async def scan_error(_request: Request, error: FatalError) -> JSONResponse:
     logger.error(f"{error}: {error.__cause__}")
     return JSONResponse(
         status_code=500, content={"error": str(error), "detail": str(error.__cause__)}

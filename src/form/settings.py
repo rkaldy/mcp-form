@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str | None = None
     llm_timeout: int = 120
 
+    max_image_size: int = 2400
     max_upload_size_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     confidence_threshold: int = Field(default=75, ge=0, le=100)
     session_ttl: timedelta = Field(default=timedelta(hours=24), gt=timedelta(0))

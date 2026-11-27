@@ -1,4 +1,4 @@
-class ScanError(Exception):
+class FatalError(Exception):
     pass
 
 
