@@ -6,6 +6,8 @@ import { readApiError, readScanStream, streamError } from './api.js';
 const props = defineProps({ scan: { type: Object, required: true } });
 const emit = defineEmits(['processed', 'error', 'progress', 'review']);
 const heading = ref(null);
+const cropDialog = ref(null);
+const zoomedCrop = ref(null);
 const submitting = ref(false);
 const error = ref(null);
 const controller = new AbortController();
@@ -19,6 +21,23 @@ const fields = ref(props.scan.reviews.map((field) => ({
   cropError: false,
   touched: false,
 })));
+
+async function openCrop(field, event) {
+  const image = event.currentTarget.querySelector('img');
+  const bounds = image.getBoundingClientRect();
+  zoomedCrop.value = {
+    url: field.crop,
+    label: field.label,
+    width: bounds.width * 2,
+    height: bounds.height * 2,
+  };
+  await nextTick();
+  cropDialog.value.showModal();
+}
+
+function closeCrop() {
+  cropDialog.value.close();
+}
 
 function displayDate(value) {
   const [year, month, day] = value.split('-');
@@ -167,7 +186,13 @@ onBeforeUnmount(() => {
           <h2 :id="`label-${index}`">{{ field.label }}</h2>
           <div class="review-columns">
             <div class="field-crop">
-              <img v-if="field.crop" :src="field.crop" :alt="`Výřez: ${field.label}`" />
+              <button
+                v-if="field.crop" class="crop-preview" type="button"
+                :aria-label="`Zvětšit výřez: ${field.label}`" aria-haspopup="dialog"
+                aria-controls="crop-zoom" :disabled="submitting" @click="openCrop(field, $event)"
+              >
+                <img :src="field.crop" :alt="`Výřez: ${field.label}`" />
+              </button>
               <template v-else-if="field.cropError">
                 <span>Výřez se nepodařilo načíst.</span>
                 <button type="button" class="crop-retry" @click="loadCrop(field)">Zkusit znovu</button>
@@ -210,5 +235,24 @@ onBeforeUnmount(() => {
       <ErrorMessage :message="error" />
       <span class="visually-hidden" role="status">{{ submitting ? 'Zpracováváme formulář…' : '' }}</span>
     </form>
+    <dialog
+      id="crop-zoom" ref="cropDialog" class="crop-zoom-dialog" aria-labelledby="crop-zoom-heading"
+      @cancel.prevent="closeCrop" @close="zoomedCrop = null" @click="closeCrop"
+    >
+      <div v-if="zoomedCrop" class="crop-zoom-panel" @click.stop>
+        <div class="crop-zoom-header">
+          <h2 id="crop-zoom-heading">{{ zoomedCrop.label }}</h2>
+          <button class="icon-button" type="button" aria-label="Zavřít zvětšený výřez" @click="closeCrop">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
+          </button>
+        </div>
+        <div class="crop-zoom-viewport">
+          <img
+            :src="zoomedCrop.url" :alt="`Zvětšený výřez: ${zoomedCrop.label}`"
+            :style="{ width: `${zoomedCrop.width}px`, height: `${zoomedCrop.height}px` }"
+          />
+        </div>
+      </div>
+    </dialog>
   </section>
 </template>

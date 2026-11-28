@@ -47,8 +47,10 @@ class ScanService:
             field = getattr(model, name)
             path = f"{prefix}.{name}" if prefix else name
             if isinstance(field, FormField):
-                if field.confidence < self.confidence_threshold or (
-                    name in ("activity_name", "date") and field.value is None
+                if (
+                    field.confidence < self.confidence_threshold
+                    or name == "activity_name"
+                    or (name == "date" and field.value is None)
                 ):
                     field_type = FieldType.STRING
                     for value_type in get_args(

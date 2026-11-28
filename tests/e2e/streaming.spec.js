@@ -125,6 +125,44 @@ test.describe('review', () => {
     await expectReady(page);
   });
 
+  test('stacks crop above the input on mobile and opens an accessible double-size preview', async ({ page }) => {
+    await openReview(page);
+    const row = page.getByRole('group', { name: 'Datum', exact: true });
+    const crop = row.getByRole('img', { name: 'Výřez: Datum', exact: true });
+    await expect.poll(() => crop.evaluate((image) => image.naturalWidth)).toBe(16);
+    const labelBounds = await row.getByRole('heading', { name: 'Datum', exact: true }).boundingBox();
+    const cropBounds = await crop.boundingBox();
+    const inputBounds = await row.getByRole('textbox', { name: 'Datum', exact: true }).boundingBox();
+    expect(cropBounds.y).toBeGreaterThanOrEqual(labelBounds.y + labelBounds.height);
+    if (page.viewportSize().width < 600) {
+      expect(inputBounds.y).toBeGreaterThanOrEqual(cropBounds.y + cropBounds.height);
+    } else {
+      expect(inputBounds.x).toBeGreaterThan(cropBounds.x + cropBounds.width);
+      const nameRow = page.getByRole('group', { name: 'Jméno účastníka', exact: true });
+      const nameCrop = await nameRow.getByRole('img').boundingBox();
+      const nameInput = await nameRow.getByRole('textbox', { name: 'Jméno účastníka: Jméno', exact: true }).boundingBox();
+      expect(nameInput.y + nameInput.height / 2).toBeCloseTo(nameCrop.y + nameCrop.height / 2, 0);
+    }
+
+    const preview = row.getByRole('button', { name: 'Zvětšit výřez: Datum', exact: true });
+    await preview.click();
+    const dialog = page.getByRole('dialog', { name: 'Datum', exact: true });
+    await expect(dialog).toBeVisible();
+    const enlarged = dialog.getByRole('img', { name: 'Zvětšený výřez: Datum', exact: true });
+    const zoomBounds = await enlarged.boundingBox();
+    expect(zoomBounds.width).toBeCloseTo(cropBounds.width * 2, 0);
+    expect(zoomBounds.height).toBeCloseTo(cropBounds.height * 2, 0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(preview).toBeFocused();
+    await preview.press('Enter');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Zavřít zvětšený výřez' }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(row.getByRole('textbox', { name: 'Datum', exact: true })).toHaveValue('8.11.2026');
+  });
+
   test('invalid dates stay editable and are not sent for processing', async ({ page }) => {
     await openReview(page);
     const date = page.getByRole('textbox', { name: 'Datum', exact: true });
