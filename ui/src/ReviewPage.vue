@@ -1,14 +1,13 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ErrorMessage from './ErrorMessage.vue';
-import { readApiError } from './api.js';
+import { readApiError, readScanStream, streamError } from './api.js';
 
 const props = defineProps({ scan: { type: Object, required: true } });
-const emit = defineEmits(['processed', 'restart', 'error']);
+const emit = defineEmits(['processed', 'error', 'progress', 'review']);
 const heading = ref(null);
 const submitting = ref(false);
 const error = ref(null);
-const failed = ref(false);
 const controller = new AbortController();
 const fields = ref(props.scan.reviews.map((field) => ({
   ...field,
@@ -97,7 +96,7 @@ async function loadCrop(field) {
 }
 
 async function submit() {
-  if (submitting.value || failed.value) return;
+  if (submitting.value) return;
   fields.value.forEach((field) => { field.touched = true; });
   if (fields.value.some(validationError)) {
     await nextTick();
@@ -115,20 +114,35 @@ async function submit() {
         reviews: fields.value.map((field) => ({ path: field.path, value: correctedValue(field) })),
       }),
     });
-    if (response.ok) {
-      emit('processed');
-    } else {
+    if (!response.ok) {
       const message = await readApiError(response, 'Formulář se nepodařilo zpracovat.');
-      if (response.status === 500) {
-        emit('error', message);
-      } else {
-        failed.value = response.status !== 422;
+      if (response.status === 422) {
         error.value = message;
+        emit('review');
+      } else {
+        emit('error', message);
+      }
+      return;
+    }
+    for await (const result of readScanStream(response)) {
+      if ('fatal' in result) {
+        if (result.fatal) {
+          emit('error', streamError(result));
+        } else {
+          error.value = streamError(result);
+          emit('review');
+        }
+      } else if (result.status === 'finished') {
+        emit('processed');
+      } else if (result.status === 'processing') {
+        emit('progress', result.status);
       }
     }
   } catch {
-    failed.value = true;
-    error.value = { error: 'Spojení bylo přerušeno. Nelze ověřit, zda byl formulář zpracován.', details: '' };
+    emit('error', {
+      error: 'Spojení bylo přerušeno. Nelze ověřit, zda byl formulář zpracován.',
+      details: '',
+    });
   } finally {
     submitting.value = false;
   }
@@ -163,11 +177,11 @@ onBeforeUnmount(() => {
             </div>
             <div class="field-editor">
               <div v-if="field.type === 'Name'" class="name-inputs">
-                <label><span>Jméno</span><input v-model="field.input.first_name" type="text" :aria-label="`${field.label}: Jméno`" :disabled="submitting || failed" /></label>
-                <label><span>Příjmení</span><input v-model="field.input.surname" type="text" :aria-label="`${field.label}: Příjmení`" :disabled="submitting || failed" /></label>
+                <label><span>Jméno</span><input v-model="field.input.first_name" type="text" :aria-label="`${field.label}: Jméno`" :disabled="submitting" /></label>
+                <label><span>Příjmení</span><input v-model="field.input.surname" type="text" :aria-label="`${field.label}: Příjmení`" :disabled="submitting" /></label>
               </div>
               <label v-else-if="field.type === 'bool'" class="checkbox-field">
-                <input v-model="field.input" type="checkbox" :aria-labelledby="`label-${index}`" :disabled="submitting || failed" />
+                <input v-model="field.input" type="checkbox" :aria-labelledby="`label-${index}`" :disabled="submitting" />
                 <span>Ano</span>
               </label>
               <div v-else class="text-editor">
@@ -176,12 +190,12 @@ onBeforeUnmount(() => {
                   :inputmode="field.type === 'int' ? 'numeric' : field.type === 'Decimal' ? 'decimal' : 'text'"
                   :placeholder="field.type === 'date' ? 'D.M.YYYY' : undefined"
                   :aria-labelledby="`label-${index}`" :aria-describedby="field.touched && validationError(field) ? `error-${index}` : undefined"
-                  :aria-invalid="Boolean(field.touched && validationError(field))" :disabled="submitting || failed"
+                  :aria-invalid="Boolean(field.touched && validationError(field))" :disabled="submitting"
                   @blur="field.touched = true"
                 />
                 <label v-if="field.type === 'date'" class="calendar-picker">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2" /><path d="M8 3v4m8-4v4M4 11h16" /></svg>
-                  <input type="date" @click="$event.target.showPicker?.()" :aria-label="`Vybrat datum: ${field.label}`" :value="isoDate(field.input) || ''" :disabled="submitting || failed" @change="field.input = $event.target.value ? displayDate($event.target.value) : ''; field.touched = true" />
+                  <input type="date" @click="$event.target.showPicker?.()" :aria-label="`Vybrat datum: ${field.label}`" :value="isoDate(field.input) || ''" :disabled="submitting" @change="field.input = $event.target.value ? displayDate($event.target.value) : ''; field.touched = true" />
                 </label>
               </div>
               <p v-if="field.touched && validationError(field)" :id="`error-${index}`" class="field-error" role="alert">{{ validationError(field) }}</p>
@@ -189,12 +203,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <ErrorMessage :message="error" />
-      <button v-if="failed" class="photo-button review-submit" type="button" @click="emit('restart')">Naskenovat znovu</button>
-      <button v-else class="photo-button review-submit" type="submit" :disabled="submitting">
+      <button class="photo-button review-submit" type="submit" :disabled="submitting">
         <span v-if="submitting" class="spinner" aria-hidden="true"></span>
         {{ submitting ? 'Zpracováváme…' : 'Odeslat' }}
       </button>
+      <ErrorMessage :message="error" />
       <span class="visually-hidden" role="status">{{ submitting ? 'Zpracováváme formulář…' : '' }}</span>
     </form>
   </section>

@@ -1,8 +1,8 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReviewPage from './ReviewPage.vue';
 import ErrorMessage from './ErrorMessage.vue';
-import { readApiError } from './api.js';
+import { readApiError, readScanStream, streamError } from './api.js';
 
 const scan = ref(null);
 
@@ -10,7 +10,13 @@ const status = ref('idle');
 const error = ref(null);
 const fileInput = ref(null);
 const captureButton = ref(null);
-const resultHeading = ref(null);
+const processed = ref(false);
+const progress = ref('');
+const progressLabel = computed(() => ({
+  normalizing: 'Otáčím a ořezávám formulář',
+  scanning: 'Skenuji textová pole',
+  processing: 'Zpracovávám data',
+}[progress.value] ?? 'Odesílám formulář'));
 const menu = ref(null);
 const menuOpen = ref(false);
 
@@ -155,6 +161,7 @@ async function asJpeg(file) {
 }
 
 async function showError(message) {
+  processed.value = false;
   error.value = typeof message === 'string' ? { error: message, details: '' } : message;
   scan.value = null;
   status.value = 'idle';
@@ -171,6 +178,8 @@ async function scanPhoto(event) {
 async function uploadPhoto(file) {
   if (status.value === 'uploading') return;
   status.value = 'uploading';
+  progress.value = '';
+  processed.value = false;
   error.value = null;
   try {
     const image = await asJpeg(file);
@@ -184,30 +193,37 @@ async function uploadPhoto(file) {
         'Formulář se nepodařilo zpracovat. Zkuste jej prosím vyfotit znovu.'));
       return;
     }
-    scan.value = await response.json();
-    if (scan.value.reviews.length) {
-      status.value = 'review';
-    } else {
-      await showSuccess();
+    for await (const result of readScanStream(response)) {
+      if ('fatal' in result) {
+        await showError(streamError(result));
+      } else if (result.status === 'reviewing') {
+        scan.value = result;
+        status.value = 'review';
+      } else if (result.status === 'finished') {
+        await showSuccess();
+      } else {
+        showProgress(result.status);
+      }
     }
   } catch {
     await showError('Fotku se nepodařilo odeslat nebo přečíst. Zkontrolujte připojení a zkuste to prosím znovu.');
   }
 }
 
-async function showSuccess() {
-  status.value = 'success';
-  await nextTick();
-  resultHeading.value.focus();
+function showProgress(stage) {
+  progress.value = stage;
+  status.value = 'uploading';
 }
 
-async function startAgain() {
+async function showSuccess() {
   scan.value = null;
-  error.value = null;
   status.value = 'idle';
+  error.value = null;
+  processed.value = true;
   await nextTick();
   captureButton.value.focus({ preventScroll: true });
 }
+
 </script>
 
 <template>
@@ -233,16 +249,12 @@ async function startAgain() {
     </header>
 
     <main :class="{ 'review-main': status === 'review' }">
-      <ReviewPage v-if="status === 'review'" :scan="scan" @processed="showSuccess" @restart="startAgain" @error="showError" />
-      <section v-else-if="status === 'success'" class="success-page" aria-labelledby="result-heading">
-        <span class="success-symbol" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none"><path d="m8 16 5 5L24 10" /></svg>
-        </span>
-        <h1 id="result-heading" ref="resultHeading" tabindex="-1">Formulář byl úspěšně zpracován.</h1>
-        <button class="secondary-button" type="button" @click="startAgain">Naskenovat další formulář</button>
-      </section>
-
-      <section v-else class="home-page" aria-label="Skenování formuláře">
+      <ReviewPage
+        v-if="scan" v-show="status === 'review'" :scan="scan"
+        @processed="showSuccess" @error="showError"
+        @progress="showProgress" @review="status = 'review'"
+      />
+      <section v-if="status !== 'review'" class="home-page" aria-label="Skenování formuláře">
         <div class="scan-area" :aria-busy="status === 'uploading'">
           <span class="orbit orbit-outer" aria-hidden="true"></span>
           <span class="orbit orbit-inner" aria-hidden="true"></span>
@@ -253,7 +265,7 @@ async function startAgain() {
           >
             <template v-if="status === 'uploading'">
               <span class="spinner" aria-hidden="true"></span>
-              <span>Čteme formulář…</span>
+              <span>{{ progressLabel }}</span>
             </template>
             <template v-else>
               <svg class="camera-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -271,8 +283,12 @@ async function startAgain() {
         </div>
 
         <div class="visually-hidden" role="status" aria-live="polite">
-          <span v-if="status === 'uploading'">Čteme formulář…</span>
+          <span v-if="status === 'uploading'">{{ progressLabel }}</span>
         </div>
+        <p v-if="processed" class="success-message" role="status">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+          <span>Formulář úspěšně zpracován</span>
+        </p>
         <ErrorMessage :message="error" />
 
       </section>

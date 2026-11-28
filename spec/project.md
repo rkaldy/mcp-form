@@ -46,10 +46,7 @@ salesman/
 
 - Runtime webové aplikace: Cloudflare Python Workers přes `pywrangler` (balíček `workers-py`). Vyžaduje `uv >= 0.13.4`.
 - Instalace závislostí: `uv sync`
-- Wrangler CLI: `npm install` (vyžaduje Node.js >= 22.12); Python runtime dál spouští `pywrangler`.
-- Lokální server: `make dev` nebo `uv run pywrangler dev` (http://localhost:8787).
-- Deploy: `make deploy` nebo `uv run pywrangler deploy`.
-- FastAPI aplikace: `src/form/app.py`; Workers entrypoint: `src/worker.py`; konfigurace: `wrangler.jsonc`.
+- Lokální server: `make run` (http://localhost:8000).
 - Endpointy: `/`, `/health`, `/docs` a `/openapi.json`. Webová aplikace nevystavuje MCP.
 - Lint: `make lint`
 - Testy: `make test`

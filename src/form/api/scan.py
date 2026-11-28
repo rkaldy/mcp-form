@@ -46,8 +46,10 @@ async def scan(
     scan_service: Annotated[ScanService, Depends(get_scan_service)],
     processing_service: Annotated[ProcessingService, Depends(get_processing_service)],
 ) -> StreamingResponse:
-    async def generator() -> AsyncIterator[ScanResult | ErrorResult]:
-        image = bytearray()
+    # Read the upload before StreamingResponse starts listening for client disconnects.
+    image = bytearray()
+    upload_error: FatalError | UserInputError | None = None
+    try:
         if (
             request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
             != "image/jpeg"
@@ -61,6 +63,12 @@ async def scan(
                 )
         if not image:
             raise FatalError("Image must not be empty")
+    except (FatalError, UserInputError) as error:
+        upload_error = error
+
+    async def generator() -> AsyncIterator[ScanResult | ErrorResult]:
+        if upload_error is not None:
+            raise upload_error
         yield ScanResult(session_id=None, status=SessionStatus.NORMALIZING)
         session_id = await scan_service.normalize(bytes(image))
         yield ScanResult(session_id=session_id, status=SessionStatus.SCANNING)

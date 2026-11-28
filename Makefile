@@ -22,5 +22,5 @@ test:
 test-external:
 	uv run pytest -vv tests/external
 
-test-e2e:
-	npm run test:e2e
+test-ui:
+	npm run test

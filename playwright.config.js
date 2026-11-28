@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
+  workers: 2,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: 'list',
@@ -20,9 +21,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:4173/health',
     env: {
       LITELLM_LOCAL_MODEL_COST_MAP: 'True',
-      LLM_MODEL: 'test',
-      LLM_API_KEY: 'synthetic-key',
-      DATABASE_PATH: ':memory:',
     },
   },
 });

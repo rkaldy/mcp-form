@@ -9,7 +9,6 @@ import httpx
 import pytest
 from PIL import Image
 from pytest_mock import MockerFixture
-from starlette.types import Receive, Scope, Send
 
 from form.api.models import ScanResult
 from form.app import app
@@ -152,13 +151,8 @@ def expected_crops() -> dict[str, tuple[tuple[int, int], bytes]]:
 
 @pytest.fixture
 async def client(dependencies) -> AsyncIterator[httpx.AsyncClient]:
-    async def asgi_app(scope: Scope, receive: Receive, send: Send):
-        # HTTPX omits the ASGI HTTP version; 2.4 avoids a second consumer of the upload stream.
-        scope["asgi"] = {"version": "3.0", "spec_version": "2.4"}
-        await app(scope, receive, send)
-
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=asgi_app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
 
